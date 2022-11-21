@@ -1,2 +1,5 @@
-1. 在创建no activity项目时，build与launch成功，但模拟器没有apk安装与运行
-2. ViewBinding
+* [ ] 在创建no activity项目时，build与launch成功，但模拟器没有apk安装与运行
+* [ ] ViewBinding
+* [ ] startActivityForResult()被弃用
+* [ ] 屏幕旋转Activity重新创建的最佳解决方案
+* [ ] singleInstance，测试返回栈

@@ -493,8 +493,6 @@ fun doStudy(study : Study?){
     }
 }
 ```
-
-# 补充
 ## 函数的参数默认值
 > Kotlin提供了给函数设置参数默认值的功能，并且调用此函数时不会强制要求调用方为此参数传值，在没有传值的情况下会自动使用参数的默认值。
 
@@ -515,3 +513,103 @@ fun main(){
 ```
 
 kotlin中完全可以通过只编写一个主构造函数，然后给参数设定默认值的方式来实现与次构造函数一样的效果
+
+
+## kotlin语法糖
+在Java中有JavaBean的概念，会根据类中的字段自动生成Getter和Setter方法
+
+在kotlin中可以使用一种更加简便的写法，看上去可以直接对字段进行赋值和读取，其实kotlin背后会自动调用Getter或Setter方法
+
+
+# 标准函数和静态方法
+## 标准函数
+### with
+with接收两个参数，第一个参数是任意类型的对象，第二个参数是一个Lambda表达式
+with函数会在Lambda表达式中提供第一个参数对象的上下文，并使用Lambda表达式最后一行代码作为返回值返回
+```kotlin
+fun main(){
+    val list = listOf("apple", "banana", "orange", "pear")
+    val result = with(StringBuilder()){
+        append("start eating")
+        for(fruit in list){
+            append(fruit).append("\n")
+        }
+        append("end eating")
+        toString()
+    }
+    println(result)
+}
+```
+
+### run
+run方法需要在某个对象的基础上调用，只接收一个Lambda参数，并且在Lambda表达式中提供调用对象的上下文
+```kotlin
+fun main(){
+    val list = listOf("apple", "banana", "orange", "pear")
+    val result = StringBuilder().run{
+        append("start eating")
+        for(fruit in list){
+            append(fruit).append("\n")
+        }
+        append("end eating")
+        toString()
+    }
+    println(result)
+}
+```
+### apply
+与run方法类似
+但apply函数无法指定返回值
+```kotlin
+fun main(){
+    val list = listOf("apple", "banana", "orange", "pear")
+    val result = StringBuilder().apply{
+        append("start eating")
+        for(fruit in list){
+            append(fruit).append("\n")
+        }
+        append("end eating")
+    }
+    println(result.toString())
+}
+```
+
+## 静态方法
+### 单例类
+单例类会使类中所有方法都成为静态方法
+### companion object
+```kotlin
+class Util{
+    fun Method1(){
+
+    }
+    companion object{
+        fun Method2(){
+
+        }
+    }
+}
+```
+Method2()并不是静态方法，companion object关键字会在类Util的内部创建一个伴生类，Method2()就是定义在这个伴生类里面的实例方法。但Kotlin会保证Util类始终只会存在一个伴生类对象，因此调用Util.Method2()方法实际上就是调用了Util类中伴生类的方法
+### @JvmStaticzhujie
+```kotlin
+class Util{
+    fun Method1(){
+
+    }
+    companion object{
+        @JvmStatic
+        fun Method2(){
+
+        }
+    }
+}
+```
+Method()方法成为真正的静态方法
+### 顶层方法
+```kotlin
+fun Method(){
+
+}
+```
+在Kotlin File（相比于Kotlin Class而言）中直接定义的方法为顶层方法，顶层方法全部编译为静态方法

@@ -1,6 +1,14 @@
 # ViewBinding
 一旦启动了ViewBinding功能之后，Android Studio会自动为我们所编写的每一个布局文件都生成一个对应的Binding类。
-
+```xml
+<!--build.gradle-->
+android {
+    ...
+    buildFeatures {
+        viewBinding true
+    }
+}
+```
 Binding类的命名规则是将布局文件按驼峰方式重命名后，再加上Binding作为结尾。
 
 比如说，我们定义一个activity_main.xml布局，那么与它对应的Binding类就是ActivityMainBinding。

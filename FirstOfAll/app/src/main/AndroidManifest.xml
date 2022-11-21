@@ -13,6 +13,17 @@
         android:theme="@style/Theme.FirstOfAll"
         tools:targetApi="31">
         <activity
+            android:name=".SecondActivity"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.android.firstofall.ACTION_START"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="" />
+        </activity>
+        <activity
             android:name=".FirstActivity"
             android:exported="true">
             <intent-filter>
@@ -27,8 +38,7 @@
         </activity>
         <activity
             android:name=".MainActivity"
-            android:exported="true">
-        </activity>
+            android:exported="true"></activity>
     </application>
 
 </manifest>

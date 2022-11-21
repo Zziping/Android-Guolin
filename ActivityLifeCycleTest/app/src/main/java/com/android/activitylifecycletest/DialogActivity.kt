@@ -1,11 +1,14 @@
 package com.android.activitylifecycletest
 
-import android.support.v7.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import com.android.activitylifecycletest.databinding.ActivityDialogBinding
 
 class DialogActivity : AppCompatActivity() {
+    lateinit var binding: ActivityDialogBinding
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_dialog)
+        binding = ActivityDialogBinding.inflate(layoutInflater)
+        setContentView(binding.root)
     }
 }
