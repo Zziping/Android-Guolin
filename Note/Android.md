@@ -280,7 +280,7 @@ class SecondActivity : BaseActivity{
 ### Button
 button中英文字母默认全大写，使用`android:textAllCaps="false"`属性保留原始文字内容
 
-### 监听器的注册
+#### 监听器的注册
 **1. 函数式API**
 ```kotlin
 class MainActivity : AppCompatActivity() {
@@ -474,3 +474,112 @@ class TitleLayout(context : Context, attrs : AttributeSet) : LinearLayout(contex
     }
 }
 ```
+
+## ListView
+### ListView的简单用法
+在布局中引入ListView
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <ListView
+        android:id="@+id/listView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+</LinearLayout>
+```
+```kotlin
+class ListViewActivity : AppCompatActivity() {
+    private val data = listOf("apple", "banana", "orange", "watermelon", "pear", "grape", "pineapple", "strawberry", "cherry", "mango", "apple", "banana", "orange", "watermelon", "pear", "grape", "pineapple", "strawberry", "cherry", "mango")
+    lateinit var binding : ActivityListViewBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityListViewBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        //在Adapter的构造函数中依次传入 Activity的实例、ListView子项布局的id、数据源
+        val adapter = ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, data)
+        binding.listView.adapter = adapter
+    }
+}
+```
+
+### 定制ListView的界面
+定义实体类
+```kotlin
+class Fruit(val name : String, val imageId : Int)
+```
+定制item
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="60dp">
+    <ImageView
+        android:id="@+id/fruitImage"
+        android:layout_gravity="center_vertical"
+        android:layout_marginLeft="10dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"/>
+    <TextView
+        android:id="@+id/fruitName"
+        android:layout_gravity="center_vertical"
+        android:layout_marginLeft="10dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+</LinearLayout>
+```
+创建自定义适配器
+```kotlin
+class FruitAdapter(activity : Activity, resourceId : Int, data : List<Fruit>) : ArrayAdapter<Fruit>(activity, resourceId, data) {
+    lateinit var binding : FruitItemBinding
+    override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+        binding = FruitItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        val fruit = getItem(position)
+        if(fruit != null){
+            binding.fruitImage.setImageResource(fruit.imageId)
+            binding.fruitName.text = fruit.name
+        }
+        return binding.root
+    }
+}
+```
+最后修改Activity中的代码
+```kotlin
+class ListViewActivity : AppCompatActivity() {
+    private val fruitList = ArrayList<Fruit>()
+    lateinit var binding : ActivityListViewBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityListViewBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        initFruits()
+        val adapter = FruitAdapter(this, R.layout.fruit_item, fruitList)
+        binding.listView.adapter = adapter
+    }
+    private fun initFruits(){
+        repeat(2){
+            fruitList.apply {
+                add(Fruit("apple", R.drawable.apple_pic))
+                add(Fruit("banana", R.drawable.banana_pic))
+                add(Fruit("cherry", R.drawable.cherry_pic))
+                add(Fruit("grape", R.drawable.grape_pic))
+                add(Fruit("mango", R.drawable.mango_pic))
+                add(Fruit("orange", R.drawable.orange_pic))
+                add(Fruit("pear", R.drawable.pear_pic))
+                add(Fruit("pineapple", R.drawable.pineapple_pic))
+                add(Fruit("strawberry", R.drawable.strawberry_pic))
+                add(Fruit("watermelon", R.drawable.watermelon_pic))
+            }
+        }
+    }
+}
+```
+
+> binding = FruitItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+> **XxxBinding.inflate(layoutInflater, parent, attachToParent)** 中三个参数的含义
+> 1. layoutInflater可以直接从contex或parent.context中获取
+> 2. parent是给加载好的布局指定父布局
+> 3. attachToParent为true时表示将布局添加入parent中并且不能再向parent中添加view，为false时表示不将第一个参数的view添加到parent中，parent会协助第一个参数view的根节点生成布局参数，这个时候我们要手动地把view添加进来
+
+### 提升ListView的运行效率

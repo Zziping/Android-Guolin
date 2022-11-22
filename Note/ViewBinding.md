@@ -204,3 +204,70 @@ class MainActivity : AppCompatActivity() {
     }
 }
 ```
+
+## 5. 在自定义控件中使用ViewBinding
+自定义导航栏
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/title_bg">
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/titleBack"
+        android:text="back"
+        android:layout_margin="5dp"
+        android:background="@drawable/back_bg"
+        android:textColor="#fff"/>
+    <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:id="@+id/titleText"
+        android:layout_weight="1"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:text="Title Text"
+        android:textColor="#fff"
+        android:textSize="24sp"/>
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/titleEdit"
+        android:text="Edit"
+        android:layout_margin="5dp"
+        android:background="@drawable/edit_bg"
+        android:textColor="#fff"/>
+</LinearLayout>
+```
+添加自定义控件
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <com.android.widgettest.TitleLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+</LinearLayout>
+```
+使用ViewBinding
+```kotlin
+class TitleLayout(context : Context, attrs : AttributeSet) : LinearLayout(context, attrs) {
+    var binding : TitleBinding
+    init {
+        //inflate(layoutInflater, parent, attachToParent)
+        binding = TitleBinding.inflate(LayoutInflater.from(context), this, true)
+        binding.titleBack.setOnClickListener {
+            val activity = context as Activity
+            activity.finish()
+        }
+        binding.titleEdit.setOnClickListener {
+            Toast.makeText(context, "Edit", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+```

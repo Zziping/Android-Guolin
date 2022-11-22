@@ -1,4 +1,3 @@
 package com.android.widgettest
 
-class Fruit {
-}
+class Fruit(val name : String, val imageId : Int)
