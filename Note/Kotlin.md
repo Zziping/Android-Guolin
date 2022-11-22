@@ -591,7 +591,7 @@ class Util{
 }
 ```
 Method2()并不是静态方法，companion object关键字会在类Util的内部创建一个伴生类，Method2()就是定义在这个伴生类里面的实例方法。但Kotlin会保证Util类始终只会存在一个伴生类对象，因此调用Util.Method2()方法实际上就是调用了Util类中伴生类的方法
-### @JvmStaticzhujie
+### @JvmStatic注解
 ```kotlin
 class Util{
     fun Method1(){

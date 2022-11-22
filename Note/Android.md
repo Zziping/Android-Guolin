@@ -270,3 +270,207 @@ class SecondActivity : BaseActivity{
 }
 ```
 以此实现在启动SecondActivity时便可以知道其需要传递哪些数据的效果
+
+
+
+# UI
+## 常见控件
+### TextView
+
+### Button
+button中英文字母默认全大写，使用`android:textAllCaps="false"`属性保留原始文字内容
+
+### 监听器的注册
+**1. 函数式API**
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.button.setOnClickListener {
+            //点击逻辑
+        }
+    }
+}
+```
+**2. 实现接口**
+```kotlin
+class MainActivity : AppCompatActivity(), View.OnClickListener {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.button1.setOnClickListener(this)
+    }
+
+    override fun onClick(v: View?) {
+        when(v){
+            binding.button1 -> {
+                //点击逻辑
+            }
+        }
+    }
+}
+```
+
+### EditText
+`android:hint="Type something here."`：设置提示性文本
+`android:maxLines="2"`：设置文本最大行数，超过将向上滚动
+
+### ImageView
+
+### ProgressBar
+Android控件都具有可见属性，在xml中可以通过`android:visibility=""`来指定，在代码中可以使用`setVisibility()`方法来设置
+
+Visibility有三种属性：
+**visible**：可见
+**invisible**：不可见但仍占用屏幕空间
+**gone**：不可见且不占用屏幕空间
+
+可以通过`style="?android:attr/..."`属性来设置进度条的样式
+
+### ALertDialog
+弹出对话框，置顶于所有界面元素之上
+
+
+## 基本布局
+### LinearLayout——线性布局
+`android:orientation`设置控件排列方向
+`android:layout_gravity`设置控件在布局中的对齐方式
+`android:layout_weight`用比例的方式指定控件的大小
+
+### RelativeLayout——相对布局
+
+
+### FrameLayout——帧布局
+
+## 自定义控件
+### 引入布局
+自定义标题栏
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/title_bg">
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/titleBack"
+        android:text="back"
+        android:layout_margin="5dp"
+        android:background="@drawable/back_bg"
+        android:textColor="#fff"/>
+    <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:id="@+id/titleText"
+        android:layout_weight="1"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:text="Title Text"
+        android:textColor="#fff"
+        android:textSize="24sp"/>
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/titleEdit"
+        android:text="Edit"
+        android:layout_margin="5dp"
+        android:background="@drawable/edit_bg"
+        android:textColor="#fff"/>
+</LinearLayout>
+```
+引入布局
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+    <include layout="@layout/title"/>
+</LinearLayout>
+```
+隐藏系统自带的标题栏
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        supportActionBar?.hide()
+    }
+}
+```
+
+
+### 创建自定义控件
+自定义导航栏
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/title_bg">
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/titleBack"
+        android:text="back"
+        android:layout_margin="5dp"
+        android:background="@drawable/back_bg"
+        android:textColor="#fff"/>
+    <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:id="@+id/titleText"
+        android:layout_weight="1"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:text="Title Text"
+        android:textColor="#fff"
+        android:textSize="24sp"/>
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/titleEdit"
+        android:text="Edit"
+        android:layout_margin="5dp"
+        android:background="@drawable/edit_bg"
+        android:textColor="#fff"/>
+</LinearLayout>
+```
+添加自定义控件
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <com.android.widgettest.TitleLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+</LinearLayout>
+```
+为自定义控件中的控件注册点击事件
+```kotlin
+class TitleLayout(context : Context, attrs : AttributeSet) : LinearLayout(context, attrs) {
+    var binding : TitleBinding
+    init {
+        //inflate(layoutInflater, parent, attachToParent)
+        binding = TitleBinding.inflate(LayoutInflater.from(context), this, true)
+        binding.titleBack.setOnClickListener {
+            val activity = context as Activity
+            activity.finish()
+        }
+        binding.titleEdit.setOnClickListener {
+            Toast.makeText(context, "Edit", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+```

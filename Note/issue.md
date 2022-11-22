@@ -3,3 +3,5 @@
 * [ ] startActivityForResult()被弃用
 * [ ] 屏幕旋转Activity重新创建的最佳解决方案
 * [ ] singleInstance，测试返回栈
+* [ ] viewBinding的不同写法，参数意义
+* [ ] 获取layoutInflater的方法
