@@ -583,3 +583,122 @@ class ListViewActivity : AppCompatActivity() {
 > 3. attachToParent为true时表示将布局添加入parent中并且不能再向parent中添加view，为false时表示不将第一个参数的view添加到parent中，parent会协助第一个参数view的根节点生成布局参数，这个时候我们要手动地把view添加进来
 
 ### 提升ListView的运行效率
+getView()方法中有一个convertView参数，这个参数就是用于将之前加载好的布局进行缓存，因此可以做出如下优化
+```kotlin
+class FruitAdapter(activity : Activity, resourceId : Int, data : List<Fruit>) : ArrayAdapter<Fruit>(activity, resourceId, data) {
+    lateinit var binding : FruitItemBinding
+    override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+        val view : View
+        //如果convertView为null，则使用LayoutInflater加载布局；如果不为null，则直接对convertView进行重用
+        if(convertView == null){
+            binding = FruitItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+            view = binding.root
+        }else{
+            view = convertView
+        }
+        val fruit = getItem(position)
+        if(fruit != null){
+            binding.fruitImage.setImageResource(fruit.imageId)
+            binding.fruitName.text = fruit.name
+        }
+        return view
+    }
+}
+```
+
+虽然现在已经**不会再重复加载布局**，但是每次getView()方法中仍然会**获取一次控件的实例**，可以借助ViewHolder来对这部分进行性能优化
+```kotlin
+class FruitAdapter(activity : Activity, resourceId : Int, data : List<Fruit>) : ArrayAdapter<Fruit>(activity, resourceId, data) {
+    lateinit var binding : FruitItemBinding
+    override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+        val view : View
+        val viewHolder : ViewHolder
+        if(convertView == null){
+            binding = FruitItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+            view = binding.root
+            val fruitImage : ImageView = binding.fruitImage
+            val fruitName : TextView = binding.fruitName
+            viewHolder = ViewHolder(fruitImage, fruitName)
+            view.tag = viewHolder
+        }else{
+            view = convertView
+            viewHolder = view.tag as ViewHolder
+        }
+        val fruit = getItem(position)
+        if(fruit != null){
+            viewHolder.fruitImage.setImageResource(fruit.imageId)
+            viewHolder.fruitName.text = fruit.name
+        }
+        return view
+    }
+    inner class ViewHolder(val fruitImage : ImageView, val fruitName : TextView)
+}
+```
+View中的setTag（Onbect）表示给View添加一个格外的数据，以后可以用getTag()将这个数据取出来。
+此时当convertView为null时，会创建一个ViewHolder对象，并将控件的实例存放在其中，然后用setTag()方法将ViewHolder对象存放在View中。当convertView不为null时，则调用View的getTag()方法把ViewHolder对象取出，这样就免去了findViewById()操作，不用重复获取控件实例。
+
+### ListView的点击事件
+```kotlin
+class ListViewActivity : AppCompatActivity() {
+    private val fruitList = ArrayList<Fruit>()
+    lateinit var binding : ActivityListViewBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityListViewBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        initFruits()
+        val adapter = FruitAdapter(this, R.layout.fruit_item, fruitList)
+        binding.listView.adapter = adapter
+        //binding.listView.setOnItemClickListener { parent, view, position, id ->
+        //kotlin中允许我们将没用到的参数用下划线来替代
+        binding.listView.setOnItemClickListener { _, _, position, _ ->
+            val fruit = fruitList[position]
+            Toast.makeText(this, fruit.name, Toast.LENGTH_SHORT).show()
+        }
+    }
+    ...
+}
+```
+
+## RecyclerView
+**运行效率**
+**更好的扩展性**
+### RecyclerView基本用法
+RecyclerView属于新增控件，使用前需要在在build.gradle中添加依赖
+```gradle
+dependencies {
+    implementation 'androidx.recyclerview:recyclerview:1.2.1'
+    ...
+}
+```
+在布局中引入RecyclerView
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+</androidx.constraintlayout.widget.ConstraintLayout>
+```
+为RecyclerView准备一个适配器
+```kotlin
+class FruitRecyclerViewAdapter(val fruitList : List<Fruit>) : RecyclerView.Adapter<FruitRecyclerViewAdapter.ViewHolder>() {
+    inner class ViewHolder(binding: FruitItemBinding) : RecyclerView.ViewHolder(binding.root){
+        val fruitImage : ImageView = binding.fruitImage
+        val fruitName : TextView = binding.fruitName
+    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val binding = FruitItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return ViewHolder(binding)
+    }
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val fruit = fruitList[position]
+        holder.fruitImage.setImageResource(fruit.imageId)
+        holder.fruitName.text = fruit.name
+    }
+    override fun getItemCount(): Int = fruitList.size
+}
+```
