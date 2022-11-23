@@ -6,3 +6,4 @@
 * [ ] viewBinding的不同写法，参数意义
 * [ ] 获取layoutInflater的方法
 * [ ] convertView进行listview效率优化，viewbinding
+* [ ] mergeAdapter

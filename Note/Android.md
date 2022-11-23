@@ -702,3 +702,107 @@ class FruitRecyclerViewAdapter(val fruitList : List<Fruit>) : RecyclerView.Adapt
     override fun getItemCount(): Int = fruitList.size
 }
 ```
+1. 让ViewHolder构造函数接收FruitItemBinding这个参数。但是注意，**ViewHolder的父类RecyclerView.ViewHolder它只会接收View类型的参数**，因此我们需要调用binding.root获得fruit_item.xml中根元素的实例传给RecyclerView.ViewHolder。我们在onCreateViewHolder()函数中调用FruitItemBinding的inflate()函数去加载fruit_item.xml布局文件，然后创建一个ViewHolder实例，并把加载出来的布局传入构造函数中，最后将ViewHolder实例返回。这样，我们就**不需要再使用findViewById()函数**来查找控件实例了，而是调用binding.fruitImage和binding.fruitName就可以直接引用到相应控件的实例。
+2. onBindViewHolder()方法用于对RecyclerView子项数据进行赋值，会在每个子项被滚动到屏幕内的时候执行。
+
+```kotlin
+class RecyclerViewActivity : AppCompatActivity() {
+    lateinit var binding : ActivityRecyclerViewBinding
+    private val fruitList = ArrayList<Fruit>()
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityRecyclerViewBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        initFruits()
+        val layoutManager = LinearLayoutManager(this)
+        binding.recyclerView.layoutManager = layoutManager
+        val adapter = FruitRecyclerViewAdapter(fruitList)
+        binding.recyclerView.adapter = adapter
+    }
+    private fun initFruits(){
+        ...
+    }
+}
+```
+**LayoutManager**用于指定RecyclerView的布局方式
+
+### 实现横向滚动和瀑布流布局
+#### 横向滚动
+修改fruit_item布局为垂直线性布局，宽度指定固定布局
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="80dp"
+    android:orientation="vertical"
+    android:layout_height="wrap_content">
+    <ImageView
+        android:id="@+id/fruitImage"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="10dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"/>
+    <TextView
+        android:id="@+id/fruitName"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="10dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+</LinearLayout>
+```
+**LayoutManager**指定RecyclerView的布局方式为水平方向布局
+```kotlin
+class RecyclerViewActivity : AppCompatActivity() {
+    lateinit var binding : ActivityRecyclerViewBinding
+    private val fruitList = ArrayList<Fruit>()
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        val layoutManager = LinearLayoutManager(this)
+        layoutManager.orientation = LinearLayoutManager.HORIZONTAL
+        binding.recyclerView.layoutManager = layoutManager
+        val adapter = FruitRecyclerViewAdapter(fruitList)
+        binding.recyclerView.adapter = adapter
+    }
+    ...
+}
+```
+**网格布局：GridLayoutManager**
+**瀑布流布局：StaggeredGridLayoutManager**
+
+### RecyclerView的点击事件
+RecyclerView需要我们自己给子项具体的View去注册点击事件
+```kotlin
+class FruitRecyclerViewAdapter(val fruitList : List<Fruit>) : RecyclerView.Adapter<FruitRecyclerViewAdapter.ViewHolder>() {
+    inner class ViewHolder(binding: FruitScrollItemBinding) : RecyclerView.ViewHolder(binding.root){
+        val fruitImage : ImageView = binding.fruitImage
+        val fruitName : TextView = binding.fruitName
+    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val binding = FruitScrollItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        val viewHolder = ViewHolder(binding)
+        viewHolder.fruitImage.setOnClickListener {
+            val position = viewHolder.bindingAdapterPosition
+            val fruit = fruitList[position]
+            Toast.makeText(parent.context, "image ${fruit.name}", Toast.LENGTH_SHORT).show()
+        }
+        viewHolder.fruitName.setOnClickListener {
+            val position = viewHolder.bindingAdapterPosition
+            val fruit = fruitList[position]
+            Toast.makeText(parent.context, "text ${fruit.name}", Toast.LENGTH_SHORT).show()
+        }
+        return viewHolder
+    }
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val fruit = fruitList[position]
+        holder.fruitImage.setImageResource(fruit.imageId)
+        holder.fruitName.text = fruit.name
+    }
+    override fun getItemCount(): Int = fruitList.size
+}
+```
+`val position = viewHolder.bindingAdapterPosition`
+* getBindingAdapterPostion：返回该ViewHolder相对于它绑定的Adapter中的位置，即**相对位置**。
+* getAbsoluteAdapterPosition：返回该ViewHolder相对于RecyclerView的位置，即**绝对位置**。
+
+## 编写界面的最佳实践
+### 制作9-Patch图片
+9-Patch图片能够指定哪些区域可以被拉伸、哪些区域不可以
