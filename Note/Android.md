@@ -805,4 +805,93 @@ class FruitRecyclerViewAdapter(val fruitList : List<Fruit>) : RecyclerView.Adapt
 
 ## 编写界面的最佳实践
 ### 制作9-Patch图片
-9-Patch图片能够指定哪些区域可以被拉伸、哪些区域不可以
+9-Patch图片能够指定哪些区域可以被拉伸、哪些区域不可以被拉伸
+
+### 编写精美的聊天界面
+Msg实体类
+```kotlin
+class Msg(val content : String, val type : Int) {
+    companion object{
+        const val TYPE_RECEIVED = 0
+        const val TYPE_SENT = 1
+    }
+}
+```
+> 只有在单例类、companion object或顶层方法中才可以使用const关键字
+
+RecyclerView的子项布局有两种，分别创建msg_left_item.xml和msg_right_item.xml
+
+创建RecyclerView的适配器
+```kotlin
+class MsgAdapter(val msgList : List<Msg>) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+    inner class LeftViewHolder(binding : MsgLeftItemBinding) : RecyclerView.ViewHolder(binding.root){
+        val leftMsg : TextView = binding.leftMsg
+    }
+    inner class RightViewHolder(binding : MsgRightLayoutBinding) : RecyclerView.ViewHolder(binding.root){
+        val rightMsg : TextView = binding.rightMsg
+    }
+    override fun getItemViewType(position: Int): Int {
+        val msg = msgList[position]
+        return msg.type
+    }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder = if(viewType == Msg.TYPE_RECEIVED){
+        val binding = MsgLeftItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        LeftViewHolder(binding)
+    }else{
+        val binding = MsgRightLayoutBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        RightViewHolder(binding)
+    }
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        val msg = msgList[position]
+        when(holder){
+            is LeftViewHolder -> holder.leftMsg.text = msg.content
+            is RightViewHolder -> holder.rightMsg.text = msg.content
+            else -> throw java.lang.IllegalArgumentException()
+        }
+    }
+    override fun getItemCount(): Int = msgList.size
+}
+```
+最后准备一些数据，并给发送按钮添加点击事件
+```kotlin
+class UIBestActivity : AppCompatActivity(), View.OnClickListener {
+    private val msgList = ArrayList<Msg>()
+    private var adapter : MsgAdapter? = null
+    lateinit var binding : ActivityUibestBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityUibestBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        initMsg()
+        val layoutManager = LinearLayoutManager(this)
+        binding.recyclerView.layoutManager = layoutManager
+        adapter = MsgAdapter(msgList)
+        binding.recyclerView.adapter = adapter
+        binding.sendButton.setOnClickListener(this)
+    }
+    override fun onClick(v: View?) {
+        when(v){
+            binding.sendButton -> {
+                val content = binding.inputText.text.toString()
+                if(content.isNotEmpty()){
+                    val msg = Msg(content, Msg.TYPE_SENT)
+                    msgList.add(msg)
+                    //通知列表有新的数据插入
+                    adapter?.notifyItemInserted(msgList.size - 1)
+                    //将显示的数据定位到最后一行
+                    binding.recyclerView.scrollToPosition(msgList.size - 1)
+                    binding.inputText.setText("")
+                }
+            }
+        }
+    }
+    private fun initMsg(){
+        val msg1 = Msg("How are you?", Msg.TYPE_RECEIVED)
+        msgList.add(msg1)
+        val msg2 = Msg("Fine, thank you, and you?", Msg.TYPE_SENT)
+        msgList.add(msg2)
+        val msg3 = Msg("I'm fine, too!", Msg.TYPE_RECEIVED)
+        msgList.add(msg3)
+    }
+}
+```
