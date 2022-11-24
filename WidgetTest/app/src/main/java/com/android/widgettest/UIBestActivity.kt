@@ -8,7 +8,7 @@ import com.android.widgettest.databinding.ActivityUibestBinding
 
 class UIBestActivity : AppCompatActivity(), View.OnClickListener {
     private val msgList = ArrayList<Msg>()
-    private var adapter : MsgAdapter? = null
+    lateinit var adapter: MsgAdapter
     lateinit var binding : ActivityUibestBinding
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,7 +29,7 @@ class UIBestActivity : AppCompatActivity(), View.OnClickListener {
                 if(content.isNotEmpty()){
                     val msg = Msg(content, Msg.TYPE_SENT)
                     msgList.add(msg)
-                    adapter?.notifyItemInserted(msgList.size - 1)
+                    adapter.notifyItemInserted(msgList.size - 1)
                     binding.recyclerView.scrollToPosition(msgList.size - 1)
                     binding.inputText.setText("")
                 }
