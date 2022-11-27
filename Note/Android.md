@@ -1417,6 +1417,107 @@ class BootCompleteReceiver : BroadcastReceiver() {
             android:exported="true"></receiver>
         ...
     </application>
+</manifest>
+```
+BroadcastReceiver中是不允许开启线程的，当onRecrive()方法运行了较长时间而没有结束时，程序就会出现错误。
+
+## 发送自定义广播
+### 发送标准广播
+```kotlin
+class MyBroadcastReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        // This method is called when the BroadcastReceiver is receiving an Intent broadcast.
+        Toast.makeText(context, "Receive in myBroadcastReceiver", Toast.LENGTH_SHORT).show()
+    }
+}
+```
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.BroadcastReceiverApplication"
+        tools:targetApi="31">
+        <receiver
+            android:name=".MyBroadcastReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter android:priority="100">
+                <action android:name="com.android.broadcastreceiverapplication.MY_BROADCAST" />
+            </intent-filter>
+        </receiver>
+        ...
+    </application>
 
 </manifest>
 ```
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.button.setOnClickListener {
+            val intent = Intent("com.android.broadcastreceiverapplication.MY_BROADCAST")
+            intent.setPackage(packageName)
+            sendBroadcast(intent)
+        }
+    }
+}
+```
+在Android8.0系统之后，静态注册的BroadcastReceiver是无法接收隐式广播的，而默认情况下我们自定义的广播恰恰都是隐式广播，因此一定要调用setPackage(packageName)方法指定这条广播是发给哪个应用程序的，从而让它变成一条显式广播。
+### 发送有序广播
+自定义另一个BroadcastReceiver
+```kotlin
+class AnotherBroadcastReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        // This method is called when the BroadcastReceiver is receiving an Intent broadcast.
+        Toast.makeText(context, "Receive in anotherBroadcastReceiver", Toast.LENGTH_SHORT).show()
+    }
+}
+```
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.button.setOnClickListener {
+            val intent = Intent("com.android.broadcastreceiverapplication.MY_BROADCAST")
+            intent.setPackage(packageName)
+            sendOrderedBroadcast(intent, null)
+        }
+    }
+}
+```
+```xml
+    <!--指定优先级-->
+            <intent-filter android:priority="100">
+                <action android:name="com.android.broadcastreceiverapplication.MY_BROADCAST" />
+            </intent-filter>
+```
+拦截广播
+```kotlin
+class MyBroadcastReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        // This method is called when the BroadcastReceiver is receiving an Intent broadcast.
+        Toast.makeText(context, "Receive in myBroadcastReceiver", Toast.LENGTH_SHORT).show()
+        abortBroadcast()
+    }
+}
+```
+
+## 广播的最佳实践：实现强制下线功能
+
+
+
+

@@ -16,15 +16,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        val intentFilter = IntentFilter()
-        intentFilter.addAction("android.intent.action.TIME_TICK")
-        timeChangeReceiver = TimeChangeReceiver()
-        registerReceiver(timeChangeReceiver, intentFilter)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        unregisterReceiver(timeChangeReceiver)
+        binding.button.setOnClickListener {
+            val intent = Intent("com.android.broadcastreceiverapplication.MY_BROADCAST")
+            intent.setPackage(packageName)
+            sendOrderedBroadcast(intent, null)
+        }
     }
     inner class TimeChangeReceiver : BroadcastReceiver(){
         override fun onReceive(context: Context?, intent: Intent?) {
