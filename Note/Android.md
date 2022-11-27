@@ -181,6 +181,17 @@ class SecondActivity : AppCompatActivity() {
 只有用户按下button返回FirstActivity才会返回数据，按下返回键并不会返回数据，可以重写 **onBackPressed()** 方法来解决这个问题
 
 ## Activity生命周期
+### Activity状态
+**1. 运行状态**
+返回栈栈顶
+**2. 暂停状态**
+不处于返回栈栈顶，但仍然可见
+**3. 停止状态**
+不处于返回栈栈顶，并且完全不可见
+**4. 销毁状态**
+从返回栈中移除
+
+### Activity生存期
 **1. 完整生存期**
 Activity在onCreate()方法和onDestroy()方法之间所经历的就是完整生存期。一般情况下，一个Activity会在onCreate()方法中完成各种初始化操作，而在onDestory()方法中完成释放内存的操作。
 **2. 可见生存期**
@@ -894,4 +905,518 @@ class UIBestActivity : AppCompatActivity(), View.OnClickListener {
         msgList.add(msg3)
     }
 }
+```
+
+
+# Fragment
+## Fragment的使用方式
+### Fragment的简单用法
+首先编写fragment的布局
+left_fragment.xml
+right_fragment.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <Button
+        android:id="@+id/button"
+        android:layout_gravity="center_horizontal"
+        android:text="button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+</LinearLayout>
+```
+编写Fragment中的代码
+LeftFragment.kt
+RightFragment.kt
+```kotlin
+class LeftFragment : Fragment() {
+    private var _binding : LeftFragmentBinding? = null
+    val binding get() = _binding!!
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        _binding = LeftFragmentBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+```
+在activity布局中添加fragment
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <fragment
+        android:id="@+id/leftFrag"
+        android:name="com.android.fragment.LeftFragment"
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="match_parent"/>
+    <fragment
+        android:id="@+id/rightFrag"
+        android:name="com.android.fragment.RightFragment"
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="match_parent"/>
+</LinearLayout>
+```
+> 注意此处需要通过android:name属性显式声明要添加的Fragment类名
+
+### 动态添加Fragment
+activity_main.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <fragment
+        android:id="@+id/leftFrag"
+        android:name="com.android.fragment.LeftFragment"
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="match_parent"/>
+    <FrameLayout
+        android:id="@+id/rightLayout"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"/>
+</LinearLayout>
+```
+MainActivity.kt
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    private lateinit var leftFragmentBinding : LeftFragmentBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        replaceFragment(AnotherRightFragment())
+        val leftFrag = supportFragmentManager.findFragmentById(R.id.leftFrag) as LeftFragment
+        leftFrag.binding.button.setOnClickListener {
+            Log.d("TestBtn", "clicked")
+        }
+        replaceFragment(RightFragment())
+    }
+    private fun replaceFragment(fragment: Fragment){
+        val fragmentManager = supportFragmentManager
+        val transaction = fragmentManager.beginTransaction()
+        transaction.replace(binding.rightLayout.id, fragment)
+        transaction.commit()
+    }
+}
+```
+`leftFragmentBinding = LeftFragmentBinding.bind(binding.root)`让fragment_one.xml布局和activity_main.xml布局能够关联起来
+
+### 在fragment中实现返回栈
+```kotlin
+class MainActivity : AppCompatActivity() {
+    ...
+    private fun replaceFragment(fragment: Fragment){
+        val fragmentManager = supportFragmentManager
+        val transaction = fragmentManager.beginTransaction()
+        transaction.replace(binding.rightLayout.id, fragment)
+        //接收一个名字作为返回栈的状态，一般传入null即可
+        transaction.addToBackStack(null)
+        transaction.commit()
+    }
+}
+```
+
+### Fragment和Activity之间的交互
+FragmentManager提供了一个类似于findViewBuId()的方法，专门用于从布局文件中获取Fragment
+```kotlin
+    val fragment = supportFragmentManager.findFragmentById(R.id.leftFrag) as LeftFragment
+```
+获取fragment后便可获取其中的binding对象
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    private lateinit var leftFragmentBinding : LeftFragmentBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        val leftFrag = supportFragmentManager.findFragmentById(R.id.leftFrag) as LeftFragment
+        leftFrag.binding.button.setOnClickListener {
+            Log.d("TestBtn", "clicked")
+            replaceFragment(RightFragment())
+        }
+    }
+}
+```
+
+在每个Fragment中都可以通过调用getActivity()方法来得到和当前fragment相关联的Activity实例
+```kotlin
+    if(activity != null){
+        val mainActivity = activity as MainActivity
+    }
+```
+当Fragment中需要使用Context对象时，也可以使用getActivity()方法，因为获取到的Activity本身就是一个Context对象
+
+## Fragment生命周期
+### Fragment的状态和回调
+**1. 运行状态**
+当一个Fragment所关联的Activity正处于运行状态时，该Fragment也处于运行状态
+**2. 暂停状态**
+当一个Activity进入暂停状态时，与它相关联的Fragment就会进入暂停状态
+**3. 停止状态**
+当一个Activity进入停止状态时，与它相关联的Fragment就会进入停止状态。或者通过调用FragmentTransaction的remove()、replace()方法将Fragment从Activity中移除，但在事物提交之前**调用了**addToBackStack()方法，这时的Fragment也会进入停止状态。停止状态的Fragment对用户是完全不可见的。
+**4. 销毁状态**
+当一个Activity被销毁时，与它相关联的Fragment就会进入销毁状态。或者通过调用FragmentTransaction的remove()、replace()方法将Fragment从Activity中移除，但在事物提交之前**没有调用**addToBackStack()方法，这时的Fragment也会进入停止状态。
+
+**onAttach()**：当Fragment和Activity建立关联时调用
+**onCreateView()**：为Fragment创建视图时调用
+**onActivityCreated()**：确保与Fragment相关联的Activity已经创建完毕时调用
+**onDestroyView()**：与Fragment关联的视图被移除时调用
+**onDetach()**：Fragment与Activity解除关联时调用
+
+
+![avatar](images/Fragment.png)
+
+Fragment中可以通过
+```kotlin
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+    }
+```
+来保存数据，保存下来的数据在onCreate()、onCreateView()、onActivityCreated()这三个方法中可以重新得到
+
+## 动态加载布局的技巧
+### 使用限定符
+在res目录下新建layout-large文件夹，在这个文件夹下新建布局也叫做activity_main.xml。这样那些屏幕被认为是large的设备就会自动加载layout-large文件夹下的布局，小屏幕的设备则还是会加载layout文件夹下的布局。
+
+### 使用最小宽度限定符
+在res目录下新建layout-sw600dp文件夹，然后在文件夹下新建activity_main.xml布局，这就意味着，当程序运行在屏幕宽度大于等于600dp的设备上时，会加载layout-sw600dp文件夹下的布局，当程序运行在屏幕宽度小于600dp的设备上时，则仍然加载默认的layout目录下的布局
+
+
+## Fragment的最佳实践：一个简易版的新闻应用
+news_content_frag.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <!--将新闻内容布局设置为不可见，因为在双页模式下，在没选中列表中任何一条新闻时，是不应该看到新闻内容布局的-->
+    <LinearLayout
+        android:id="@+id/contentLayout"
+        android:orientation="vertical"
+        android:visibility="invisible"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <TextView
+            android:id="@+id/newsTitle"
+            android:gravity="center"
+            android:padding="10dp"
+            android:textSize="20sp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#000"/>
+        <TextView
+            android:id="@+id/newsContent"
+            android:padding="15dp"
+            android:textSize="18sp"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"/>
+    </LinearLayout>
+    <View
+        android:layout_alignParentLeft="true"
+        android:background="#000"
+        android:layout_width="1dp"
+        android:layout_height="match_parent"/>
+</RelativeLayout>
+```
+NewsContentFragment.kt
+```kotlin
+class NewsContentFragment : Fragment() {
+    private var _binding : NewsContentFragBinding? = null
+    val binding get() = _binding!!
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        _binding = NewsContentFragBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+    //提供显示新闻的方法
+    fun refresh(title : String, content : String){
+        binding.contentLayout.visibility = View.VISIBLE
+        binding.newsTitle.text = title
+        binding.newsContent.text = content
+    }
+}
+```
+layout/activity_main.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/newsTitleLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <fragment
+            android:id="@+id/newsTitleFrag"
+            android:name="com.android.newsapplication.NewsTitleFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
+
+    </FrameLayout>
+</LinearLayout>
+```
+在单页模式中还需要一个显示新闻内容的activity
+activity_news_content.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <fragment
+        android:id="@+id/newsContentFrag"
+        android:name="com.android.newsapplication.NewsContentFragment"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+</LinearLayout>
+```
+NewsContentActivity.kt
+```kotlin
+class NewsContentActivity : AppCompatActivity() {
+    //activity跳转的最佳实践
+    companion object{
+        fun actionStart(context : Context, title : String, content : String){
+            val intent = Intent(context, NewsContentActivity::class.java).apply {
+                putExtra("news_title", title)
+                putExtra("news_content", content)
+            }
+            context.startActivity(intent)
+        }
+    }
+    lateinit var binding : ActivityNewsContentBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityNewsContentBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        val title = intent.getStringExtra("news_title")
+        val content = intent.getStringExtra("news_content")
+        if(title != null && content != null){
+            val fragment = supportFragmentManager.findFragmentById(R.id.newsContentFrag) as NewsContentFragment
+            fragment.refresh(title, content)
+        }
+    }
+}
+```
+news_title_frag.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/newsTitleRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+</LinearLayout>
+```
+news_item.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/newsTitle"
+    android:maxLines="1"
+    android:ellipsize="end"
+    android:textSize="18sp"
+    android:paddingLeft="10dp"
+    android:paddingRight="10dp"
+    android:paddingTop="15dp"
+    android:paddingBottom="15dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"/>
+```
+NewsTitleFragment.kt
+```kotlin
+class NewsTitleFragment : Fragment() {
+    private var _binding : NewsTitleFragBinding? = null
+    val binding get() = _binding!!
+    private var isTwoPane = false
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        _binding = NewsTitleFragBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+    override fun onActivityCreated(savedInstanceState: Bundle?) {
+        super.onActivityCreated(savedInstanceState)
+        isTwoPane = activity?.findViewById<View>(R.id.newsContentLayout) != null
+        val layoutManager = LinearLayoutManager(activity)
+        binding.newsTitleRecyclerView.layoutManager = layoutManager
+        val adapter = NewsAdapter(getNews())
+        binding.newsTitleRecyclerView.adapter = adapter
+    }
+    //数据准备
+    private fun getNews() : List<News>{
+        val newsList = ArrayList<News>()
+        for (i in 1..50){
+            val news = News("This is news title $i.", getRandomLengthString("This is news content $i."))
+            newsList.add(news)
+        }
+        return newsList
+    }
+    private fun getRandomLengthString(str : String) : String{
+        val n = (1..20).random()
+        val builder = StringBuilder()
+        repeat(n){
+            builder.append(str)
+        }
+        return builder.toString()
+    }
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+    //NewsAdapter
+    //写成内部类的好处是此处可以直接访问NewsTitleFragment的变量，如isTwoPane
+    inner class NewsAdapter(val newsList : List<News>) : RecyclerView.Adapter<NewsAdapter.ViewHolder>(){
+        inner class ViewHolder(binding: NewsItemBinding) : RecyclerView.ViewHolder(binding.root){
+            val newsTitle : TextView = binding.newsTitle
+        }
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            val newsItemBinding = NewsItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+            val holder = ViewHolder(newsItemBinding)
+            holder.itemView.setOnClickListener {
+                val news = newsList[holder.bindingAdapterPosition]
+                if(isTwoPane){
+                    val fragment = activity?.supportFragmentManager?.findFragmentById(R.id.newsContentFrag) as NewsContentFragment
+                    fragment.refresh(news.title, news.content)
+                }else{
+                    NewsContentActivity.actionStart(parent.context, news.title, news.content)
+                }
+            }
+            return holder
+        }
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            val news = newsList[position]
+            holder.newsTitle.text = news.title
+        }
+        override fun getItemCount(): Int = newsList.size
+    }
+}
+```
+layout-sw600dp/activity_main.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <fragment
+        android:id="@+id/newsTitleFrag"
+        android:name="com.android.newsapplication.NewsTitleFragment"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"/>
+    <FrameLayout
+        android:id="@+id/newsContentLayout"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="3">
+        <fragment
+            android:id="@+id/newsContentFrag"
+            android:name="com.android.newsapplication.NewsContentFragment"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
+    </FrameLayout>
+</LinearLayout>
+```
+
+# 广播
+## 广播机制简介
+**Android中广播的分类**
+* 标准广播
+    异步执行的广播
+* 有序广播
+    同步执行的广播
+
+## 接收系统广播
+**注册BroadcastReceiver的方式**
+* 动态注册
+* 静态注册
+### 动态注册
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    lateinit var timeChangeReceiver : TimeChangeReceiver
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        val intentFilter = IntentFilter()
+        //系统每隔1分钟就会发出一条android.intent.action.TIME_TICK广播
+        intentFilter.addAction("android.intent.action.TIME_TICK")
+        timeChangeReceiver = TimeChangeReceiver()
+        registerReceiver(timeChangeReceiver, intentFilter)
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(timeChangeReceiver)
+    }
+    inner class TimeChangeReceiver : BroadcastReceiver(){
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Toast.makeText(context, "Time is changed", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+```
+系统广播列表可以在 **\<Android SDK>/platforms/<android api版本>/data/broadcast_actions.txt** 查看
+**动态注册的BroadcastReceiver一定要取消注册**
+
+### 静态注册
+动态注册的BroadcastReceiver可以自由控制注册与注销，但其必须在程序启动后才能接收广播。
+
+实现开机启动
+```kotlin
+class BootCompleteReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        // This method is called when the BroadcastReceiver is receiving an Intent broadcast.
+        Toast.makeText(context, "Boot Complete", Toast.LENGTH_SHORT).show()
+    }
+}
+```
+在AndroidManifest.xml中注册，并添加权限
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!--权限-->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.BroadcastReceiverApplication"
+        tools:targetApi="31">
+        <!--注册-->
+        <receiver
+            android:name=".BootCompleteReceiver"
+            android:enabled="true"
+            android:exported="true"></receiver>
+        ...
+    </application>
+
+</manifest>
 ```

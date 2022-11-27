@@ -1,4 +1,3 @@
 package com.android.newsapplication
 
-class News {
-}
+class News(val title : String, val content : String)

@@ -60,7 +60,7 @@ class MainFragment : Fragment(){
     //属性名前加下划线通常意味着不打算直接访问该属性
     private var _binding : FragmentMainBinding? = null
     //get()意味着返回_binding!!给getBinding()函数
-    private val binding get() = _binding!!
+    val binding get() = _binding!!
     override fun onCreateView(inflater : LayoutInflater, container : ViewGroup?, savedInstanceState : Bundle?) : View{
         _binding = FragmentMainBinding.inflate(inflater, container, false)
         return binding.root
@@ -267,6 +267,68 @@ class TitleLayout(context : Context, attrs : AttributeSet) : LinearLayout(contex
         }
         binding.titleEdit.setOnClickListener {
             Toast.makeText(context, "Edit", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+```
+
+## 6. 在Activity中获取fragment的binding对象
+activity_main.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <fragment
+        android:id="@+id/leftFrag"
+        android:name="com.android.fragment.LeftFragment"
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="match_parent"/>
+</LinearLayout>
+```
+fragment_one.xml
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <Button
+        android:id="@+id/button"
+        android:layout_gravity="center_horizontal"
+        android:text="button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+</LinearLayout>
+```
+OneFragment.kt
+```kotlin
+class OneFragment : Fragment() {
+    private var _binding : LeftFragmentBinding? = null
+    //此处设置为public，这样可以在Activity中获取_binding
+    val binding get() = _binding!!
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        _binding = LeftFragmentBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+```
+MainActivity.kt
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        val leftFrag = supportFragmentManager.findFragmentById(R.id.leftFrag) as LeftFragment
+        leftFrag.binding.button.setOnClickListener {
+            Log.d("TestBtn", "clicked")
         }
     }
 }

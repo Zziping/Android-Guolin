@@ -623,3 +623,31 @@ fun Method(){
 可以使用`::adapter.isInitialized`来判断adapter变量是否已经初始化
 
 ## 密封类
+
+
+# 扩展函数和运算符重载
+## 扩展函数
+
+## 运算符重载
+语法糖表达式和实际调用函数对照表
+|语法糖表达式|实际调用函数|
+|:-:|:-:|
+|a + b|a.plus(b)|
+|a - b|a.minus(b)|
+|a * b|a.times(b)|
+|a / b|a.div(b)|
+|a % b|a.rem(b)|
+|a++|a.inc()|
+|a--|a.dec()|
+|+a|a.umaryPlus()|
+|-a|a.unaryMinus()|
+|!a|a.not()|
+|a == b|a.equals(b)|
+|a > b|a.compareTo(b)|
+|a < b|a.compareTo(b)|
+|a >= b|a.compareTo(b)|
+|a <= b|a.compareTo(b)|
+|a..b|a.rangeTo(b)|
+|a[b]|a.get(b)|
+|a[b] = c|a.set(b, c)|
+|a in b|b.contains(a)|
