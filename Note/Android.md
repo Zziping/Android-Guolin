@@ -1517,7 +1517,351 @@ class MyBroadcastReceiver : BroadcastReceiver() {
 ```
 
 ## 广播的最佳实践：实现强制下线功能
+强制下线需要关闭所有的Activity，因此建立ActivityCollector
+```kotlin
+object ActivityCollector {
+    private val activities = ArrayList<Activity>()
+    fun addActivity(activity: Activity){
+        activities.add(activity)
+    }
+    fun removeActivity(activity: Activity){
+        activities.remove(activity)
+    }
+    fun finishAll(){
+        for(activity in activities){
+            if(!activity.isFinishing){
+                activity.finish()
+            }
+        }
+        activities.clear()
+    }
+}
+```
+创建BaseActivity作为所有Activity的父类
+```kotlin
+open class BaseActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        ActivityCollector.addActivity(this)
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+        ActivityCollector.removeActivity(this)
+    }
+}
+```
+创建LoginActivity与其布局
+```kotlin
+class LoginActivity : BaseActivity() {
+    lateinit var binding : ActivityLoginBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.login.setOnClickListener {
+            val account = binding.accountEdit.text.toString()
+            val password = binding.passwordEdit.text.toString()
+            if(account == "admin" && password == "123456"){
+                val intent = Intent(this, MainActivity::class.java)
+                startActivity(intent)
+                finish()
+            }else{
+                Toast.makeText(this, "No permission", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+}
+```
+在MainActivity中发送强制下线广播
+```kotlin
+class MainActivity : BaseActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.forceOffline.setOnClickListener {
+            val intent = Intent("com.android.broadcastpractice.FORCE_OFFLINE")
+            sendBroadcast(intent)
+        }
+    }
+}
+```
+由于静态注册的BroadcastReceiver是无法在onReceive()方法中弹出对话框这样的UI控件的，而我们也无法在每一个Activity中都注册一个动态的BroadcastReceiver。因此，可以在BaseActivity中动态注册一个BroadcastReceiver即可
+```kotlin
+open class BaseActivity : AppCompatActivity() {
+    lateinit var receiver : ForceOfflineReceiver
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        ActivityCollector.addActivity(this)
+    }
+    override fun onResume() {
+        super.onResume()
+        val intentFilter = IntentFilter()
+        intentFilter.addAction("com.android.broadcastpractice.FORCE_OFFLINE")
+        receiver = ForceOfflineReceiver()
+        registerReceiver(receiver, intentFilter)
+    }
+    override fun onPause() {
+        super.onPause()
+        unregisterReceiver(receiver)
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+        ActivityCollector.removeActivity(this)
+    }
+    inner class ForceOfflineReceiver : BroadcastReceiver(){
+        override fun onReceive(context: Context, intent: Intent?) {
+            AlertDialog.Builder(context).apply {
+                setTitle("Warning")
+                setMessage("You are forced to offline")
+                setCancelable(false)
+                setPositiveButton("OK"){_, _ ->
+                    ActivityCollector.finishAll()
+                    val i = Intent(context, LoginActivity::class.java)
+                    context.startActivity(i)
+                }
+                show()
+            }
+        }
+    }
+}
+```
+在onResume()和onPause()方法中注册与取消注册的原因：我们始终只需要保证处于栈顶的Activity才能接收到这条广播即可。
 
 
+# 数据存储——持久化技术
+## 持久化技术简介
+Android中主要提供了3种方式用于简单的实现数据持久化功能：
+    1. 文件存储
+    2. SharedPreferences
+    3. 数据库存储
+
+## 文件存储
+Context类中提供了一个openFileOutput()方法，可以用于将数据存储到指定的文件中。此方法接收两个参数，第一个参数是文件名，第二个参数是操作模式，主要有MODE_PRIVATE和MODE_APPEND两种模式。在Android4.2版本中被废弃了两种操作模式，MODE_WORLD_READABLE和MODE_WORLD_WRITEABLE。此方法返回一个FileOutputStream对象。
+
+### 存储
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+        val inputText = binding.editText.text.toString()
+        save(inputText)
+    }
+    private fun save(inputText : String){
+        try {
+            //获得FileOutputStream对象
+            val output = openFileOutput("data", Context.MODE_PRIVATE)
+            //构建OutputStreamWriter对象，再构建BufferWriter对象
+            val writer = BufferedWriter(OutputStreamWriter(output))
+            //使用use函数保证Lambda表达式中的代码全部执行完之后自动将外层的流关闭
+            writer.use {
+                it.write(inputText)
+            }
+        }catch (e : IOException){
+            e.printStackTrace()
+        }
+    }
+}
+```
+
+### 读取
+在Context类中提供了一个openFileInput()方法，它接收一个参数，即要读取的文件名，然后系统会自动到/data/data/\<package name\>/files/目录下加载这个文件，并返回一个FileInputStream对象，得到这个对象，再通过流的方式就可以将数据读出来的。
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        val inputText = load()
+        if(inputText.isNotEmpty()){
+            binding.editText.setText(inputText)
+            //将光标移动到文本的末尾
+            binding.editText.setSelection((inputText.length))
+            Toast.makeText(this, "succeed", Toast.LENGTH_SHORT).show()
+        }
+    }
+    override fun onDestroy() {...}
+    private fun load() : String{
+        val content = StringBuilder()
+        try{
+            //获取FileInputStream对象
+            val input = openFileInput("data")
+            //构建InputStreamReader对象，再构建BufferedReader对象
+            val reader = BufferedReader(InputStreamReader(input))
+            //通过BufferedReader对象将文件中的数据一行一行读取出来
+            reader.use {
+                reader.forEachLine {
+                    content.append(it)
+                }
+            }
+        }catch (e : IOException){
+            e.printStackTrace()
+        }
+        return content.toString()
+    }
+
+    private fun save(inputText : String){...}
+}
+```
+
+## SharedPreferences存储
+SharedPreferences是使用**键值对**的方式来存储数据的
+### 将数据存储到SharedPreferences中
+#### 获取SharedPreferences
+**1. Context类中的getSharedPreferences()方法**
+此方法接收两个参数：
+1. 第一个参数用于指定SharedPreferences文件的名称，如果文件不存在则会创建一个
+2. 第二个参数用于指定操作模式，目前只有默认的MODE_PRIVATE这一种模式可选。MODE_WORLD_READABLE、MODE_WORLD_WRITEABLE、MODE_MULTI_PROCESS模式均已被废弃。
+
+**2. Activity类中的getPreferences()方法**
+此方法只接收一个操作模式参数，因为使用这个方法时会自动将当前Activity的类名作为SharedPreferences的文件名。
+#### 向SharedPreferences中存储数据
+1. 调用SharedPreferences对象的edit()方法获取一个SharedPreferences.Editor对象。
+2. 向SharedPreferences.Editor对象中添加数据。
+3. 调用apply()方法将添加的数据提交。
+
+```kotlin
+class SharedPreferencesActivity : AppCompatActivity() {
+    lateinit var binding :  ActivitySharedPreferencesBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivitySharedPreferencesBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.saveButton.setOnClickListener {
+            val editor = getSharedPreferences("data", Context.MODE_PRIVATE).edit()
+            editor.putString("name", "Tom")
+            editor.putInt("age", 28)
+            editor.putBoolean("married", false)
+            editor.apply()
+        }
+    }
+}
+```
+
+### 从SharedPreferences中读取数据
+SharedPreferences对象中提供了一系列的get方法用于读取存储的数据，每种get方法都对应了SharedPreferences.Editor中的一种put方法。这些get()方法都接收两个参数，第一个参数是键，第二个参数是默认值，表示当传入的键找不到对应的值时会以什么样的默认值进行返回。
+```kotlin
+class SharedPreferencesActivity : AppCompatActivity() {
+    lateinit var binding :  ActivitySharedPreferencesBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.restoreButton.setOnClickListener {
+            val prefs = getSharedPreferences("data", Context.MODE_PRIVATE)
+            val name = prefs.getString("name", "")
+            val age = prefs.getInt("age", 0)
+            val married = prefs.getBoolean("married", false)
+            Log.d("SharedPreferences", "name is $name")
+            Log.d("SharedPreferences", "age is $age")
+            Log.d("SharedPreferences", "married is $married")
+        }
+    }
+}
+```
+### 实现记住密码功能
+```kotlin
+class LoginActivity : BaseActivity() {
+    lateinit var binding : ActivityLoginBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        val prefs = getPreferences(Context.MODE_PRIVATE)
+        val isRemember = prefs.getBoolean("remember_password", false)
+        if(isRemember){
+            val account = prefs.getString("account", "")
+            val password = prefs.getString("password", "")
+            binding.accountEdit.setText(account)
+            binding.passwordEdit.setText(password)
+            binding.rememberPass.isChecked = true
+        }
+        binding.login.setOnClickListener {
+            val account = binding.accountEdit.text.toString()
+            val password = binding.passwordEdit.text.toString()
+            if(account == "admin" && password == "123456"){
+                val editor = prefs.edit()
+                if(binding.rememberPass.isChecked){
+                    editor.putBoolean("remember_password", true)
+                    editor.putString("account", account)
+                    editor.putString("password", password)
+                }else{
+                    editor.clear()
+                }
+                editor.apply()
+                val intent = Intent(this, MainActivity::class.java)
+                startActivity(intent)
+                finish()
+            }else{
+                Toast.makeText(this, "No permission", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+}
+```
+
+## SQLite数据库存储
+Android为了让我们更加方便地管理数据库，专门提供了一个SQLiteOpenHelper帮助类。
+SQLiteOpenHelper是一个抽象类，其中有两个抽象方法：**onCreate()** 和 **onUpgrade()**。
+SQLiteOpenHelper中还有两个实例方法：**getReadableDatabase()** 和**getWritableDatabase()**。当数据库不可写入时（如磁盘空间已满），getReadableDatabase()方法返回的对象以只读的方式打开数据库，而getWritableDatabase()方法将抛出异常。
+SQLiteOpenHelper中有两个构造方法可供重写，一般使用参数少一点的那个构造函数。此构造函数中接收4个参数：第一个参数是Context；第二个参数是数据库名；第三个参数允许我们在查询数据库时返回一个自定义的Cursor，一般传入null即可；第四个参数表示当前数据库的版本号，可用于对数据库进行升级操作。
+
+### 创建数据库
+```kotlin
+class MyDatabaseHelper(val context : Context, name : String, version : Int) : SQLiteOpenHelper(context, name, null, version) {
+    private  val createBook = "create table book(" +
+            "id integer primary key autoincrement," +
+            "author text," +
+            "price real," +
+            "pages integer," +
+            "name text)"
+    override fun onCreate(db: SQLiteDatabase) {
+        db.execSQL(createBook)
+        Toast.makeText(context, "Create succeed", Toast.LENGTH_SHORT).show()
+    }
+    override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
+    }
+}
+```
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        val dbHelper = MyDatabaseHelper(this, "BookStore.db", 1)
+        binding.createDatabase.setOnClickListener {
+            dbHelper.writableDatabase
+        }
+    }
+}
+```
+
+### 升级数据库
+
+
+### 添加数据
+
+
+### 更新数据
+
+
+### 删除数据
+
+
+### 查询数据
+
+
+### 使用SQL操作数据库
+
+
+## SQLite数据库的最佳实践
 
 

@@ -190,7 +190,7 @@ class Student(val grade : Int, name : String) : Person(name){
 
 }
 ```
-此处在Student类的主构造函数中增加name字段时，不能再将其声明为val，因为在*主构造函数中声明成val或者var的参数将自动成为该类的字段*
+此处在Student类的主构造函数中增加name字段时，不能再将其声明为val，因为在*主构造函数中声明成val或者var的参数将自动成为该类的字段*，此处使name字段的作用域仅限定在主构造函数当中即可。若一kotlin类继承Java类，**可以**将父类构造函数中存在的字段在kotlin构造函数中声明为val。
 
 **次构造函数**
 *一个类只能有一个主构造函数，但可以有多个次构造函数。次构造函数也可以用于实例化一个类，只不过它是有函数体的*
@@ -651,3 +651,12 @@ fun Method(){
 |a[b]|a.get(b)|
 |a[b] = c|a.set(b, c)|
 |a in b|b.contains(a)|
+
+
+# 高阶函数
+## 定义高阶函数
+
+## 内联函数的作用
+
+## noinline与crossinline
+
