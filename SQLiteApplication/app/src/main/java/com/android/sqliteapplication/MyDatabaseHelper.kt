@@ -18,7 +18,9 @@ class MyDatabaseHelper(val context : Context, name : String, version : Int) : SQ
         Toast.makeText(context, "Create succeed", Toast.LENGTH_SHORT).show()
     }
 
-    override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        db.execSQL("drop table if exists book")
+        onCreate(db)
     }
 
 }

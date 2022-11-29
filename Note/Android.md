@@ -1845,23 +1845,144 @@ class MainActivity : AppCompatActivity() {
 ```
 
 ### 升级数据库
+当一数据库已经存在时，onCreate()方法便不会再次执行。可以通过改变版本号来实现升级的功能。
+```kotlin
+class MyDatabaseHelper(val context : Context, name : String, version : Int) : SQLiteOpenHelper(context, name, null, version) {
+    private  val createBook = "create table book(" +
+            "id integer primary key autoincrement," +
+            "author text," +
+            "price real," +
+            "pages integer," +
+            "name text)"
+    override fun onCreate(db: SQLiteDatabase) {
+        db.execSQL(createBook)
+        Toast.makeText(context, "Create succeed", Toast.LENGTH_SHORT).show()
+    }
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        db.execSQL("drop table if exists book")
+        onCreate(db)
+    }
+
+}
+```
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        val dbHelper = MyDatabaseHelper(this, "BookStore.db", 2)
+        binding.createDatabase.setOnClickListener {
+            dbHelper.writableDatabase
+        }
+    }
+}
+```
+
+--------------------------------------
+
+对数据库的操作无非有四种，即CRUD。
+调用SQLiteOpenHelper的getReadableDatabase()或getWritableDatabase()方法是可以用于创建和升级数据库的，这两个方法都会返回一个SQLiteDatabase对象，借助这个对象就可以对数据库进行CRUD操作了。
+
+### Create——添加数据
+SQLiteDatabase中提供了一个insert()方法，专门用于添加数据。它接收3个参数：第一个参数是表名；第二个参数用于在未指定添加数据的情况下给某些可为空的列自动赋值null；第三个参数是一个ContentValues对象，它提供一系列的put()方法重载，用于向ContentValues对象中添加数据，只需要将表中每一个列名以及相应的待添加数据传入即可。
+
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.addData.setOnClickListener {
+            val db = dbHelper.writableDatabase
+            val value1 = ContentValues().apply {
+                put("name", "The Da Vinci Code")
+                put("author", "Dan Brown")
+                put("price", 16.69)
+                put("pages", 454)
+            }
+            db.insert("book", null, value1)
+            val value2 = ContentValues().apply {
+                put("name", "The Lost Symbol")
+                put("author", "Dan Brown")
+                put("price", 19.95)
+                put("pages", 510)
+            }
+            db.insert("book", null, value2)
+        }
+    }
+}
+```
+### Update——更新数据
+SQLiteDatabase中提供了一个update()方法，用于对数据进行更新。它接收4个参数：第一个参数是表名；第二个参数是ContentValues对象，把更新数据在这里组装进去；第三、四个参数用于约束更新某一行或某几行中的数据，不指定的话默认更新所有行。
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.updateData.setOnClickListener {
+            val db = dbHelper.writableDatabase
+            val values = ContentValues()
+            values.put("price", 10.99)
+            db.update("book", values, "name = ?", arrayOf("The Da Vinci Code"))
+        }
+    }
+}
+```
+### Delete——删除数据
+SQLiteDatabase中提供了一个delete()方法，专门用于删除数据。它接收3个参数：第一个参数是表名；第二、三个参数用于约束删除某一行或某几行的数据，不指定会默认删除所有行。
 
 
-### 添加数据
+### Retrieve——查询数据
+SQLiteDatabase中提供了query()方法用于对数据进行查询。这个方法的参数非常复杂，，最短的一个方法重载也需要传入7个参数：第一个参数是表名；第二个参数用于指定去查询哪几列，如果不指定则默认查询所有列；第三、四个参数用于约束查询某一行或某几行的数据，不指定则默认查询所有行的数据；第五个参数用于指定需要去group by的列，不指定则表示不对查询结果进行group by操作；第六个参数用于对group by之后的数据进行进一步的过滤，不指定则表示不进行过滤；第七个参数用于指定查询结果的排序方式，不指定则表示使用默认的排序方式。
 
+调用query()方法后会返回一个Cursor对象，查询到的所有数据都将从这个对象中取出。
 
-### 更新数据
-
-
-### 删除数据
-
-
-### 查询数据
-
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    //若不加此注解，cursor.getXxx()方法会报错： Value must be ≥ 0 but getColumnIndex can be -1
+    //或使用cursor.getXxxOrNull()方法
+    @SuppressLint("Range")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.queryData.setOnClickListener {
+            val db = dbHelper.writableDatabase
+            val cursor = db.query("book", null, null, null, null, null, null)
+            if(cursor.moveToFirst()){
+                do {
+                    val name = cursor.getStringOrNull(cursor.getColumnIndex("name"))
+                    val author = cursor.getStringOrNull(cursor.getColumnIndex("author"))
+                    val pages = cursor.getIntOrNull(cursor.getColumnIndex("pages"))
+                    val price = cursor.getDoubleOrNull(cursor.getColumnIndex("price"))
+                    Log.d("MainActivity","book name is $name")
+                    Log.d("MainActivity","book author is $author")
+                    Log.d("MainActivity","book pages is $pages")
+                    Log.d("MainActivity","book price is $price")
+                }while (cursor.moveToNext())
+            }
+            cursor.close()
+        }
+    }
+}
+```
 
 ### 使用SQL操作数据库
-
-
+Android提供了一系列方法，使得可以直接通过SQL来操作数据库
+```kotlin
+//create
+    db.execSQL("insert into book(name, author, pages, price) values(?, ?, ?, ?)", arrayOf("The Da Vinci Code", "Dan Brown", "454", "16.96"))
+//update
+    db.execSQL("update book set price = ? where name = ?", arrayOf("10.99", "The Da Vinci Code"))
+//delete
+    db.execSQL("delete from book where pages > ?", arrayOf("500"))
+//retrieve
+    val cursor = db.rawQuery("select * from book", null)
+```
 ## SQLite数据库的最佳实践
+
+### 使用事务
+
+### 升级数据库的最佳写法
 
 
