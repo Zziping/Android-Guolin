@@ -6,5 +6,6 @@
 * [x] 获取layoutInflater的方法
 * [x] convertView进行listview效率优化，viewbinding
 * [ ] mergeAdapter
-* [ ] ViewBinding总结
+* [x] ViewBinding总结
 * [ ] onActivityCreated()方法被弃用
+* [ ] Room

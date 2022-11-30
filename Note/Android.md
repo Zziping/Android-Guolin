@@ -1980,9 +1980,79 @@ Android提供了一系列方法，使得可以直接通过SQL来操作数据库
     val cursor = db.rawQuery("select * from book", null)
 ```
 ## SQLite数据库的最佳实践
-
 ### 使用事务
-
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.replaceData.setOnClickListener {
+            val db = dbHelper.writableDatabase
+            //开启事务
+            db.beginTransaction()
+            try {
+                db.delete("book", null, null)
+                //此处手动抛出异常，事务失败
+                /*if(true){
+                    throw NullPointerException()
+                }*/
+                val values = ContentValues().apply {
+                    put("name", "Game of Thrones")
+                    put("author", "George Martin")
+                    put("pages", 720)
+                    put("price", 20.85)
+                }
+                db.insert("book", null, values)
+                //事务执行成功
+                db.setTransactionSuccessful()
+            }catch (e : Exception){
+                e.printStackTrace()
+            }finally {
+                //结束事务
+                db.endTransaction()
+            }
+        }
+    }
+}
+```
 ### 升级数据库的最佳写法
+```kotlin
+class MyDatabaseHelper(val context : Context, name : String, version : Int) : SQLiteOpenHelper(context, name, null, version) {
+    private  val createBook = "create table book(" +
+            "id integer primary key autoincrement," +
+            "author text," +
+            "price real," +
+            "pages integer," +
+            "name text)"
+    private val createArea = "create table area(" +
+            "id integer primary key autoincrement," +
+            "name text," +
+            "province text)"
+    override fun onCreate(db: SQLiteDatabase) {
+        db.execSQL(createBook)
+        db.execSQL(createArea)
+    }
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion <= 1){
+            db.execSQL(createArea)
+        }
+        if(oldVersion <= 2){
+            db.execSQL("alter table book add column province text")
+        }
+    }
+}
+```
+> Google推出了一个专门用于Android平台的数据库框架——Room
 
 
+
+# ContentProvider
+目前，使用ContentProvider是Android实现**跨程序共享数据**的标准方式。
+ContentProvider可以选择只对哪一部分数据进行共享。
+
+## Android运行时权限
+Android6.0系统中加入了运行时权限功能。用户不需要在安装软件时一次性授权所有申请的权限，而是可以在软件的使用过程中再对某一项权限申请进行授权。
+
+Android将常用的权限大致归为两类：一类是**普通权限**；一类是**危险权限**。实际上还有一些特殊权限，但使用较少，暂且不做讨论。
+* 普通权限：不会直接威胁到用户的安全和隐私的权限，对于这部分权限的申请，系统会自动帮我们进行授权，不需要用户手动操作。
+* 危险权限：可能会触及用户隐私或者对设备安全性造成影响的权限，对于这部分权限的申请，必须由用户手动授权才可以，否则程序就无法使用相应的功能。

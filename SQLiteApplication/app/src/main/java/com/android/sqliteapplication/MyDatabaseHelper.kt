@@ -13,14 +13,21 @@ class MyDatabaseHelper(val context : Context, name : String, version : Int) : SQ
             "price real," +
             "pages integer," +
             "name text)"
+    private val createArea = "create table area(" +
+            "id integer primary key autoincrement," +
+            "name text," +
+            "province text)"
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(createBook)
-        Toast.makeText(context, "Create succeed", Toast.LENGTH_SHORT).show()
+        db.execSQL(createArea)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("drop table if exists book")
-        onCreate(db)
+        if (oldVersion <= 1){
+            db.execSQL(createArea)
+        }
+        if(oldVersion <= 2){
+            db.execSQL("alter table book add column province text")
+        }
     }
-
 }

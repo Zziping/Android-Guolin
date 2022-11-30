@@ -660,3 +660,13 @@ fun Method(){
 
 ## noinline与crossinline
 
+
+# 高阶函数的应用
+
+**Smart Cast**
+
+**contentValuesOf()**
+```kotlin
+    val values = contentValuesOf("name" to "Game of Thrones", "author" to "George Martin", "pages" to 720, "price" to 20.85)
+    db.insert("book", null, values)
+```

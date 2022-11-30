@@ -66,5 +66,27 @@ class MainActivity : AppCompatActivity() {
             }
             cursor.close()
         }
+        binding.replaceData.setOnClickListener {
+            val db = dbHelper.writableDatabase
+            db.beginTransaction()
+            try {
+                db.delete("book", null, null)
+                /*if(true){
+                    throw NullPointerException()
+                }*/
+                val values = ContentValues().apply {
+                    put("name", "Game of Thrones")
+                    put("author", "George Martin")
+                    put("pages", 720)
+                    put("price", 20.85)
+                }
+                db.insert("book", null, values)
+                db.setTransactionSuccessful()
+            }catch (e : Exception){
+                e.printStackTrace()
+            }finally {
+                db.endTransaction()
+            }
+        }
     }
 }
