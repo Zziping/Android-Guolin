@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <application
+        android:requestLegacyExternalStorage="true"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -12,6 +13,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SQLiteApplication"
         tools:targetApi="31">
+        <provider
+            android:name=".DatabaseProvider"
+            android:authorities="com.android.sqliteapplication.provider"
+            android:enabled="true"
+            android:exported="true">
+        </provider>
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

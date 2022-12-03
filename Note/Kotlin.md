@@ -670,3 +670,14 @@ fun Method(){
     val values = contentValuesOf("name" to "Game of Thrones", "author" to "George Martin", "pages" to 720, "price" to 20.85)
     db.insert("book", null, values)
 ```
+
+# 泛型和委托
+## 泛型的基本用法
+
+
+## 类委托和委托属性
+
+
+## 实现lazy函数
+
+

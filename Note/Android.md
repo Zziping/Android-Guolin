@@ -2056,3 +2056,630 @@ Android6.0系统中加入了运行时权限功能。用户不需要在安装软�
 Android将常用的权限大致归为两类：一类是**普通权限**；一类是**危险权限**。实际上还有一些特殊权限，但使用较少，暂且不做讨论。
 * 普通权限：不会直接威胁到用户的安全和隐私的权限，对于这部分权限的申请，系统会自动帮我们进行授权，不需要用户手动操作。
 * 危险权限：可能会触及用户隐私或者对设备安全性造成影响的权限，对于这部分权限的申请，必须由用户手动授权才可以，否则程序就无法使用相应的功能。
+
+### 在程序运行时申请权限
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.makeCall.setOnClickListener {
+            try {
+                val intent = Intent(Intent.ACTION_CALL)
+                intent.data = Uri.parse("tel:10086")
+                startActivity(intent)
+            }catch (e : SecurityException){
+                e.printStackTrace()
+            }
+        }
+    }
+}
+```
+```xml
+<!--声明权限-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.CALL_PHONE"/>
+    ...
+</manifest>
+```
+但点击make call会出现“Permission Denial”的错误提示。因为在Android6.0及以上系统在使用危险权限时必须进行运行时权限处理。
+
+**运行时权限完整流程**
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.makeCall.setOnClickListener {
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED){
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CALL_PHONE), 1)
+            }else{
+                call()
+            }
+        }
+    }
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when(requestCode){
+            1 -> {
+                if(grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+                    call()
+                }else{
+                    Toast.makeText(this, "Permission Denial", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    private fun call() {
+        try {
+            val intent = Intent(Intent.ACTION_CALL)
+            intent.data = Uri.parse("tel:19166484355")
+            startActivity(intent)
+        }catch (e : SecurityException){
+            e.printStackTrace()
+        }
+    }
+}
+```
+1. 判断用户是否已授权，借助ContextCompat.checkSelfPermission()方法。此方法接收两个参数：第一个参数是Context；第二个参数是具体的权限名。然后使用方法的返回值和PackageManager.PERMISSION_GRANTED比较来判断是否授权。
+2. 如果已授权，直接进行call()即可。如果没有授权，调用ActivityCompat.requestPermissions()方法向用户申请权限，此方法接收三个参数：第一个参数是Activity的实例；第二个参数是一个String数组，我们把要申请的权限名放在数组中；第三个参数是请求码，只要是唯一值即可。
+3. 用户选择是否授权后回调onRequestPermissionsResult()函数，授权结果会封装在grantResults参数中。我们判断授权结果，用户同意则call()，否则Toast。
+
+## 访问其他程序中的数据
+
+ContentProvider用法：
+1. 使用现有的ContentProvider读取和操作相应程序中的数据
+2. 创建自己的ContentProvider，给程序的数据提供外部访问接口
+
+### ContentResolver
+对于每一个应用程序来说，如果要访问ContentProvider中共享的数据，就一定要借助ContentResolver类，可以通过Context中的getContentResolver()方法获取该类的实例。
+ContentResolver中的增删查改方法都是不接收表名参数的，而是使用一个Uri参数来代替，这个参数被称为内容URI。
+
+> content://com.android.app.provider/table
+> **authority**：某个应用的包名是com.android.app，那么该应用对应的authority就可以命名为com.android.app.provider。
+> **path**：path用于区分同一个应用程序中不同的表，通常会添加到authority的后面。
+> **协议声明**：在字符串头部加上协议声明。
+
+使用Uri.parse()方法就可以将内容URI字符串解析成Uri对象了。
+
+```kotlin
+    var uri = Uri.parse("content://com.android.app.provider/table")
+    val cursor = contentResolver.query(
+        uri,
+        projection,
+        selection,
+        selectionArgs,
+        sortOrder)
+```
+|query()方法参数|对应SQL部分|描述|
+|:-|:-|:-|
+|uri|from table_name|指定查询某个应用程序下的某一张表|
+|projection|select column1, column2|指定查询的列名|
+|selection|where column = value|指定where的约束条件|
+|selectionArgs|-|为where中的占位符提供具体的值|
+|sortOrder|order by column1, column2|指定查询结果的排序方式|
+查询完成后返回的仍然是一个Cursor对象
+
+```kotlin
+//查询
+    while(cursor.moveToNext()){
+        val column1 = cursor.getString(cursor.getColumnIndex("column1"))
+        val column2 = cursor.getInt(cursor.getColumnIndex("column2"))
+    }
+    cursor.close()
+//添加
+    val values = contentValuesOf("column1" to "text", "column2" to 1)
+    contentResolver.insert(uri, values)
+//更新
+    val values = contentValuesOf("column1" to "")
+    contentResolver.update(uri, values, "column1 = ? and column2 = ?", arrayOf("text", "1"))
+//删除
+    contentResolver.delete(uri, "column2 = ?", arrayOf("1"))
+```
+
+### 读取系统联系人
+```kotlin
+class MainActivity : AppCompatActivity() {
+    private val contactsList = ArrayList<String>()
+    private lateinit var adapter : ArrayAdapter<String>
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, contactsList)
+        binding.contactsView.adapter = adapter
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED){
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_CONTACTS), 1)
+        }else{
+            readContacts()
+        }
+    }
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when(requestCode){
+            1 -> {
+                if(grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+                    readContacts()
+                }else{
+                    Toast.makeText(this, "Permission Denial", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    private fun readContacts(){
+        contentResolver.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null, null, null, null)?.apply {
+            while (moveToNext()){
+                val displayName = getStringOrNull(getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME))
+                val number = getStringOrNull(getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER))
+                contactsList.add("$displayName\n$number")
+            }
+            adapter.notifyDataSetChanged()
+            close()
+        }
+    }
+}
+```
+
+## 创建自己的ContentProvider
+###  创建ContentProvider的步骤
+```kotlin
+class MyProvider : ContentProvider() {
+    override fun onCreate(): Boolean {
+        return false
+    }
+    override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? {
+        return null
+    }
+    override fun getType(uri: Uri): String? {
+        return null
+    }
+    override fun insert(uri: Uri, values: ContentValues?): Uri? {
+        return null
+    }
+    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int {
+        return 0
+    }
+    override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int {
+        return 0
+    }
+}
+```
+ContentProvider类中有六个抽象方法，对于这六个方法：
+1. **onCreate()**：初始化ContentProvider的时候调用。通常会在这里完成对数据库的创建和升级等操作，返回true表示ContentProvider初始化成功，返回false则表示失败。
+2. **query()**：从ContentProvider中查询数据。
+3. **insert()**：向ContentProvider中添加一条数据。
+4. **update()**：更新ContentProvider中已有的数据。
+5. **delete()**：从ContentProvider中已有的数据。
+6. **getType()**：根据传入的内容URI返回相应的MIME类型。
+
+> 我们还可以在内容URI的后面加上一个id，如：
+> content://com.android.app.provider/table/1
+> 这就表示调用方期望访问的是com.android.app这个应用的table表中id为1的数据。
+
+**通配符**
+1. `*`：表示匹配任意长度的任意字符
+2. `#`：表示匹配任意长度的数据
+
+我们借助UriMatcher这个类就可以轻松实现匹配内容URI的功能。UriMatcher中提供了一个addUri()方法，这个方法接收了3个参数，可以分别把authority、path和一个自定义代码传进去。
+```kotlin
+class MyProvider : ContentProvider() {
+    private val table1Dir = 0
+    private val table1Item = 1
+    private val table2Dir = 2
+    private val table2Item = 3
+    private val uriMatcher = UriMatcher(UriMatcher.NO_MATCH)
+    init {
+        uriMatcher.addURI("com.android.app.provider", "table1", table1Dir)
+        uriMatcher.addURI("com.android.app.provider", "table1/#", table1Item)
+        uriMatcher.addURI("com.android.app.provider", "table2", table2Dir)
+        uriMatcher.addURI("com.android.app.provider", "table2/#", table2Item)
+    }
+    override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? {
+        when(uriMatcher.match(uri)){
+            table1Dir -> {
+                //查询table1表中的所有数据
+            }
+            table1Item -> {
+                //查询table1表中的单条数据
+            }
+            table2Dir -> {
+                //查询table2表中的所有数据
+            }
+            table2Item -> {
+                //查询table2表中的单条数据
+            }
+        }
+        ...
+    }
+    ...
+}
+```
+上述代码只是以query()方法为例，对于增删改方法，它们都会携带Uri这个参数，同样利用UriMatcher的match()方法判断出调用方期望访问的是哪张表，再对该表中的数据进行相应的操作即可。
+
+**getType()方法**
+此方法用于获取Uri对象所对应的MIME类型。一个内容URI所对应的MIME字符串主要由3部分组成，Android对这3个部分做了如下格式规定。
+1. 必须以`vnd`开头
+2. 如果内容URI以路径结尾，则后接`android.cursor.dir/`；如果内容URI以id结尾，则后接`android.cursor.item/`。
+3. 最后接上`vnd.<authority>.<path>`。
+
+```kotlin
+class MyProvider : ContentProvider() {
+    ...
+    override fun getType(uri: Uri) = when(uriMatcher.match(uri)){
+        table1Dir -> "vnd.android.cursor.dir/vnd.com.android.app.provider.table1"
+        table1Item -> "vnd.android.cursor.item/vnd.com.android.app.provider.table1"
+        table2Dir -> "vnd.android.cursor.dir/vnd.com.android.app.provider.table2"
+        table2Item -> "vnd.android.cursor.item/vnd.com.android.app.provider.table2"
+        else -> null
+    }
+}
+```
+
+### 实现跨程序数据共享
+在SqliteApplication项目中新建Content Provider
+```kotlin
+class DatabaseProvider : ContentProvider() {
+    private val bookDir = 0
+    private val bookItem = 1
+    private val areaDir = 2
+    private val areaItem = 3
+    private val authority = "com.android.sqliteapplication.provider"
+    private var dbHelper : MyDatabaseHelper? = null
+    private val uriMatcher by lazy {
+        val matcher = UriMatcher(UriMatcher.NO_MATCH)
+        matcher.addURI(authority, "book", bookDir)
+        matcher.addURI(authority, "book/#", bookItem)
+        matcher.addURI(authority, "area", areaDir)
+        matcher.addURI(authority, "area/#", areaItem)
+        matcher
+    }
+    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<String>?) = dbHelper?.let {
+        val db = it.writableDatabase
+        val deleteRows = when(uriMatcher.match(uri)){
+            bookDir -> db.delete("book", selection, selectionArgs)
+            bookItem -> {
+                val bookId = uri.pathSegments[1]
+                db.delete("book", "id = ?", arrayOf(bookId))
+            }
+            areaDir -> db.delete("area", selection, selectionArgs)
+            areaItem -> {
+                val areaId = uri.pathSegments[1]
+                db.delete("area", "id = ?", arrayOf(areaId))
+            }
+            else -> 0
+        }
+        deleteRows
+    } ?: 0
+    override fun getType(uri: Uri) = when(uriMatcher.match(uri)){
+        bookDir -> "vnd.android.cursor.dir/vnd.com.android.sqliteapplication.provider.book"
+        bookItem -> "vnd.android.cursor.item/vnd.com.android.sqliteapplication.provider.book"
+        areaDir -> "vnd.android.cursor.dir/vnd.com.android.sqliteapplication.provider.area"
+        areaItem -> "vnd.android.cursor.item/vnd.com.android.sqliteapplication.provider.area"
+        else -> null
+    }
+
+    override fun insert(uri: Uri, values: ContentValues?) = dbHelper?.let {
+        val db = it.writableDatabase
+        val uriReturn = when(uriMatcher.match(uri)){
+            bookDir, bookItem -> {
+                val newBookId = db.insert("book", null, values)
+                Uri.parse("content://$authority/book/$newBookId")
+            }
+            areaDir, areaItem -> {
+                val newAreaId = db.insert("area", null, values)
+                Uri.parse("content://$authority/area/$newAreaId")
+            }
+            else -> null
+        }
+        uriReturn
+    }
+    override fun onCreate() = context?.let {
+        dbHelper = MyDatabaseHelper(it, "BookStore.db", 2)
+        true
+    } ?: false
+    override fun query(uri: Uri, projection: Array<String>?, selection: String?, selectionArgs: Array<String>?, sortOrder: String?) = dbHelper?.let {
+        //查询数据
+        val db = it.readableDatabase
+        val cursor = when(uriMatcher.match(uri)){
+            bookDir -> db.query("book", projection, selection, selectionArgs, null, null, sortOrder)
+            bookItem -> {
+                val bookId = uri.pathSegments[1]
+                db.query("book", projection, "id = ?", arrayOf(bookId), null, null, sortOrder)
+            }
+            areaDir -> db.query("area", projection, selection, selectionArgs, null, null, sortOrder)
+            areaItem -> {
+                val areaId = uri.pathSegments[1]
+                db.query("area", projection, "id = ?", arrayOf(areaId), null, null, sortOrder)
+            }
+            else -> null
+        }
+        cursor
+    }
+    override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<String>?) = dbHelper?.let {
+        val db = it.writableDatabase
+        val updateRows = when(uriMatcher.match(uri)){
+            bookDir -> db.update("book", values, selection, selectionArgs)
+            bookItem -> {
+                val bookId = uri.pathSegments[1]
+                db.update("book", values, "id = ?", arrayOf(bookId))
+            }
+            areaDir -> db.update("area", values, selection, selectionArgs)
+            areaItem -> {
+                val areaId = uri.pathSegments[1]
+                db.update("area", values, "id = ?", arrayOf(areaId))
+            }
+            else -> 0
+        }
+        updateRows
+    } ?: 0
+}
+```
+
+Android高版本收紧了权限以防止程序随便访问其他程序的文件，所以需要在Manifest中加入语句：
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="DatabaseProvider._READ_PERMISSION" />
+    <uses-permission android:name="DatabaseProvider._WRITE_PERMISSION" />
+    <queries>
+        <package android:name="com.android.sqliteapplication" />
+    </queries>
+    ...
+</manifest>
+```
+1. 获取provider的读写权限
+2. 在queries标签中声明要访问的程序的包名
+
+# 运用手机多媒体
+## 将程序运行到手机上
+若想要将我们的程序安装到手机上，需要在gradle.properties中添加：
+```properties
+android.injected.testOnly=false
+```
+
+## 使用通知
+### 创建通知渠道 && 通知的基本用法
+Android8.0系统引入了通知渠道这个概念。每条通知都要属于一个对应的渠道。每个应用程序可以自由地创建当前应用拥有哪些通知渠道，但这些通知渠道的控制权是掌握在用户手上的。
+我们程序如果想要发出通知，也必须创建自己的通知渠道。
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        //方法接收一个字符串参数用于确定获取系统的哪个服务
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        //Android版本判断判断 Android8.0
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+            //(渠道id, 渠道名称, 重要等级)
+            //渠道id需要保证全局唯一性，渠道名称用于给用户看，用户可以随时手动更改某个通知渠道的重要等级
+            val channel = NotificationChannel("normal", "Normal", NotificationManager.IMPORTANCE_DEFAULT)
+            manager.createNotificationChannel(channel)
+        }
+        binding.sendNotice.setOnClickListener {
+            //(Context, 渠道id)，渠道id需要与我们创建通知渠道时指定的渠道id匹配
+            val notification = NotificationCompat.Builder(this, "normal")
+                .setContentTitle("This is Content Title")
+                .setContentText("This is Content Text")
+                .setSmallIcon(R.drawable.small_icon)
+                .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.large_icon))
+                .build()
+            //(id, Notification对象)，需要保证每个通知指定的id是不同的
+            manager.notify(1, notification)
+        }
+    }
+}
+```
+1. 首先调用Context的`getSystemService()`获取NotificationManager对通知进行管理。
+2. 使用NotificationChannel类构建一个通知渠道。
+3. 调用NotificationManager的`createNotificationChannel()`方法完成创建。
+4. 使用Builder构造器来创建Notification对象。
+5. 调用NotificationManager的`notify()`方法显示通知。
+
+**实现通知的点击**
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+            val channel = NotificationChannel("normal", "Normal", NotificationManager.IMPORTANCE_DEFAULT)
+            manager.createNotificationChannel(channel)
+        }
+        binding.sendNotice.setOnClickListener {
+            val intent = Intent(this, NotificationActivity::class.java)
+            val pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+            val notification = NotificationCompat.Builder(this, "normal")
+                .setContentTitle("This is Content Title")
+                .setContentText("This is Content Text")
+                .setSmallIcon(R.drawable.small_icon)
+                .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.large_icon))
+                .setContentIntent(pendingIntent)
+                .build()
+            manager.notify(1, notification)
+        }
+    }
+}
+```
+#### PendingIntent
+`PendingIntent.getActivity()`方法接收四个参数：第一个参数是Context；第二个参数一般用不到，传入0即可；第三个参数是一个Intent对象，通过此对象构建出PendingIntent的意图；第四个参数用于确定PendingIntent的行为，不同Android版本有不同的要求。
+
+**实现通知信息的自动消失**
+第一种写法：
+```kotlin
+            val notification = NotificationCompat.Builder(this, "normal")
+                ...
+                .setAutoCancel(true)
+                .build()
+```
+第二种写法
+```kotlin
+class NotificationActivity : AppCompatActivity() {
+    lateinit var binding : ActivityNotificationBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        //传入该通知的id
+        manager.cancel(1)
+    }
+}
+```
+
+### 通知的进阶技巧
+`setStyle()`方法：接收一个NotificationCompat.Style参数，这个参数用来构建具体的富文本信息，如长文字、图片等。
+
+```kotlin
+            val notification = NotificationCompat.Builder(this, "normal")
+                ...
+                //长文字
+                .setStyle(NotificationCompat.BigTextStyle().bigText("xxx"))
+                .build()
+```
+```kotlin
+            val notification = NotificationCompat.Builder(this, "normal")
+                ...
+                //图片
+                .setStyle(NotificationCompat.BigPictureStyle().bigPicture(BitmapFactory.decodeResource(resources, R.drawable.big_image)))
+                .build()
+```
+通知渠道一旦创建就不能再通过代码修改。
+
+## 调用摄像头和相册
+```kotlin
+class MainActivity : AppCompatActivity() {
+    val takePhoto = 1
+    lateinit var imageUri : Uri
+    lateinit var outputImage : File
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.takePhotoBtn.setOnClickListener {
+            //创建File对象，用于存储拍照后的图片，存放在当前应用缓存数据的位置(externalCacheDir)
+            outputImage = File(externalCacheDir, "output_image.jpg")
+            if(outputImage.exists()){
+                outputImage.delete()
+            }
+            outputImage.createNewFile()
+            imageUri = if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N){
+                //Android7.0及之后，调用getUriForFile()方法将File对象转换成一个封装过的Uri
+                //第一个参数是Context；第二个参数可以是唯一任意的字符串；第三个参数是刚刚创建的File对象
+                FileProvider.getUriForFile(this, "com.android.cameraalbumtest.fileprovider", outputImage)
+            }else{
+                //Android7.0之前，此Uri对象标识着本地真实路径
+                Uri.fromFile(outputImage)
+            }
+            //运行时权限判断
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED){
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 1)
+            }else{
+                openCamera()
+            }
+        }
+    }
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when(requestCode){
+            1 -> {
+                if(grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+                    openCamera()
+                }else{
+                    Toast.makeText(this, "Permission Denial", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    
+    private fun openCamera(){
+        //启动相机程序
+        val intent = Intent("android.media.action.IMAGE_CAPTURE")
+        //指定图片输出地址
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri)
+        startActivityForResult(intent, takePhoto)
+    }
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        when(requestCode){
+            takePhoto -> {
+                if(resultCode == Activity.RESULT_OK){
+                    //将拍摄的照片显示出来
+                    val bitmap = BitmapFactory.decodeStream(contentResolver.openInputStream(imageUri))
+                    binding.imageView.setImageBitmap(rotateIfRequired(bitmap))
+                }
+            }
+        }
+    }
+    //判断图片是否需要旋转
+    private fun rotateIfRequired(bitmap : Bitmap) : Bitmap{
+        val exif = ExifInterface(outputImage.path)
+        val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        return when(orientation){
+            ExifInterface.ORIENTATION_ROTATE_90 -> rotateBitmap(bitmap, 90)
+            ExifInterface.ORIENTATION_ROTATE_180 -> rotateBitmap(bitmap, 180)
+            ExifInterface.ORIENTATION_ROTATE_270 -> rotateBitmap(bitmap, 270)
+            else -> bitmap
+        }
+    }
+    //旋转图片
+    private fun rotateBitmap(bitmap: Bitmap, degree : Int) : Bitmap{
+        val matrix = Matrix()
+        matrix.postRotate(degree.toFloat())
+        val rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        //将不再需要的Bitmap对象回收
+        bitmap.recycle()
+        return rotatedBitmap
+    }
+}
+```
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CameraAlbumTest"
+        tools:targetApi="31">
+        <!--authorities属性必须FileProvider.getUriForFile()方法中的第二个参数一致-->
+        <provider
+            android:exported="false"
+            android:grantUriPermissions="true"
+            android:authorities="com.android.cameraalbumtest.fileprovider"
+            android:name="androidx.core.content.FileProvider">
+            <!--指定Uri的共享路径-->
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"/>
+        </provider>
+    </application>
+</manifest>
+```
+```xml
+<!--指定Uri共享路径-->
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--name可以随便填；path属性的值表示共享的具体路径此处/表示将整个SD卡进行共享-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-path
+        name="my_images"
+        path="/"/>
+</paths>
+```

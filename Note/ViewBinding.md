@@ -1,5 +1,7 @@
 # ViewBinding
-一旦启动了ViewBinding功能之后，Android Studio会自动为我们所编写的每一个布局文件都生成一个对应的Binding类。
+> 一旦启动了ViewBinding功能之后，Android Studio会自动为我们所编写的每一个布局文件都生成一个对应的Binding类。
+
+启用ViewBinding需要在app/build.gradle中添加
 ```xml
 <!--build.gradle-->
 android {
@@ -10,7 +12,6 @@ android {
 }
 ```
 Binding类的命名规则是将布局文件按驼峰方式重命名后，再加上Binding作为结尾。
-
 比如说，我们定义一个activity_main.xml布局，那么与它对应的Binding类就是ActivityMainBinding。
 
 当然，如果有些布局文件你不希望为它生成对应的Binding类，可以在该布局文件的根元素位置加入如下声明：
@@ -22,7 +23,7 @@ Binding类的命名规则是将布局文件按驼峰方式重命名后，再加�
     ...
 </LinearLayout>
 ```
-## 在Activity中使用ViewBinding
+## 1. 在Activity中使用ViewBinding
 ```kotlin
 class FirstActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,7 +54,7 @@ class FirstActivity : AppCompatActivity() {
 }
 ```
 
-## 在Fragment中使用ViewBinding
+## 2. 在Fragment中使用ViewBinding
 通过以下方法来实现在MainFragment中显示布局
 ```kotlin
 class MainFragment : Fragment(){
@@ -326,7 +327,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        //先获取fragment实例
         val leftFrag = supportFragmentManager.findFragmentById(R.id.leftFrag) as LeftFragment
+        //通过fragment实例获取binding
         leftFrag.binding.button.setOnClickListener {
             Log.d("TestBtn", "clicked")
         }
