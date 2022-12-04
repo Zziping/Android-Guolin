@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace 'com.android.playvideotest'
+    namespace 'com.android.playaudiotest'
     compileSdk 32
 
     buildFeatures{
@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.android.playvideotest"
+        applicationId "com.android.playaudiotest"
         minSdk 21
         targetSdk 32
         versionCode 1

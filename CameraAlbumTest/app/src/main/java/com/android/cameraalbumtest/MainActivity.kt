@@ -22,6 +22,7 @@ import java.io.File
 
 class MainActivity : AppCompatActivity() {
     val takePhoto = 1
+    val fromAlbum = 2
     lateinit var imageUri : Uri
     lateinit var outputImage : File
 
@@ -47,6 +48,15 @@ class MainActivity : AppCompatActivity() {
                 openCamera()
             }
         }
+        binding.fromAlbumBtn.setOnClickListener {
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
+            //if(ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE), 2)
+                //ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), 2)
+            }else{
+                openAlbum()
+            }
+        }
     }
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -62,6 +72,14 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, "Permission Denial", Toast.LENGTH_SHORT).show()
                 }
             }
+            2 -> {
+                if(grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED && grantResults[1] == PackageManager.PERMISSION_GRANTED){
+                //if(grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+                    openAlbum()
+                }else{
+                    Toast.makeText(this, "Permission Denial", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
@@ -69,6 +87,12 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent("android.media.action.IMAGE_CAPTURE")
         intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri)
         startActivityForResult(intent, takePhoto)
+    }
+    private fun openAlbum(){
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+        intent.addCategory(Intent.CATEGORY_OPENABLE)
+        intent.type = "image/*"
+        startActivityForResult(intent, fromAlbum)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -80,8 +104,17 @@ class MainActivity : AppCompatActivity() {
                     binding.imageView.setImageBitmap(rotateIfRequired(bitmap))
                 }
             }
+            fromAlbum -> {
+                if(resultCode == Activity.RESULT_OK && data != null){
+                    data.data?.let { uri ->
+                        val bitmap = getBitmapFromUri(uri)
+                        binding.imageView.setImageBitmap(bitmap)
+                    }
+                }
+            }
         }
     }
+
     private fun rotateIfRequired(bitmap : Bitmap) : Bitmap{
         val exif = ExifInterface(outputImage.path)
         val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
@@ -98,5 +131,8 @@ class MainActivity : AppCompatActivity() {
         val rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
         bitmap.recycle()
         return rotatedBitmap
+    }
+    private fun getBitmapFromUri(uri : Uri) = contentResolver.openFileDescriptor(uri, "r")?.use{
+        BitmapFactory.decodeFileDescriptor(it.fileDescriptor)
     }
 }

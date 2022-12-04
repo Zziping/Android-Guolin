@@ -9,3 +9,4 @@
 * [x] ViewBinding总结
 * [ ] onActivityCreated()方法被弃用
 * [ ] Room
+* [ ] 图片压缩

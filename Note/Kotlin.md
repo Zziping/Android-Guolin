@@ -681,3 +681,4 @@ fun Method(){
 ## 实现lazy函数
 
 
+# 使用infix函数构建更可读的语法

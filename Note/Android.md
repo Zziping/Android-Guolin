@@ -2552,6 +2552,7 @@ class NotificationActivity : AppCompatActivity() {
 通知渠道一旦创建就不能再通过代码修改。
 
 ## 调用摄像头和相册
+### 调用摄像头拍照
 ```kotlin
 class MainActivity : AppCompatActivity() {
     val takePhoto = 1
@@ -2682,4 +2683,167 @@ class MainActivity : AppCompatActivity() {
         name="my_images"
         path="/"/>
 </paths>
+```
+
+### 从相册中选择图片
+```kotlin
+class MainActivity : AppCompatActivity() {
+    ...
+    val fromAlbum = 2
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.fromAlbumBtn.setOnClickListener {
+            if(ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE), 2)
+            }else{
+                openAlbum()
+            }
+        }
+    }
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when(requestCode){
+            ...
+            2 -> {
+                if(grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED && grantResults[1] == PackageManager.PERMISSION_GRANTED){
+                    openAlbum()
+                }else{
+                    Toast.makeText(this, "Permission Denial", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    private fun openAlbum(){
+        //指定打开系统文件选择器的意图
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+        intent.addCategory(Intent.CATEGORY_OPENABLE)
+        //指定只显示图片
+        intent.type = "image/*"
+        startActivityForResult(intent, fromAlbum)
+    }
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        when(requestCode){
+            ...
+            fromAlbum -> {
+                if(resultCode == Activity.RESULT_OK && data != null){
+                    data.data?.let { uri ->
+                        val bitmap = getBitmapFromUri(uri)
+                        binding.imageView.setImageBitmap(bitmap)
+                    }
+                }
+            }
+        }
+    }
+    private fun getBitmapFromUri(uri : Uri) = contentResolver.openFileDescriptor(uri, "r")?.use{
+        BitmapFactory.decodeFileDescriptor(it.fileDescriptor)
+    }
+}
+```
+
+## 播放多媒体文件
+### 播放音频
+在Android中播放音频文件一般使用MediaPlayer类来实现
+|方法名|功能描述|
+|:-|:-|
+|setDataSource()|设置要播放的音频文件的位置|
+|prepare()|在开始播放之前调用，以完成准备工作|
+|start()|开始或继续播放音频|
+|pause()|暂停播放音频|
+|reset()|将MediaPlayer对象重置到刚刚创建的状态|
+|seekTo()|从指定的位置开始播放音频|
+|stop()|停止播放音频，调用后的MediaPlayer对象无法再播放音频|
+|release()|释放与MediaPlayer对象相关的资源|
+|isPlaying()|判断当前MediaPlayer是否正在播放音频|
+|getDuration()|获取载入的音频文件的时长|
+
+```kotlin
+class MainActivity : AppCompatActivity() {
+    private val mediaPlayer = MediaPlayer()
+    lateinit var binding: ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        initMediaPlayer()
+        binding.play.setOnClickListener {
+            if(!mediaPlayer.isPlaying){
+                mediaPlayer.start()
+            }
+        }
+        binding.pause.setOnClickListener {
+            if(mediaPlayer.isPlaying){
+                mediaPlayer.pause()
+            }
+        }
+        binding.stop.setOnClickListener {
+            if(mediaPlayer.isPlaying){
+                mediaPlayer.reset()
+                initMediaPlayer()
+            }
+        }
+    }
+    private fun initMediaPlayer(){
+        //获取AssetManager实例，用于读取assets目录下的资源
+        val assetManager = assets
+        val fd = assetManager.openFd("music.mp3")
+        mediaPlayer.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length)
+        mediaPlayer.prepare()
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+        mediaPlayer.stop()
+        mediaPlayer.release()
+    }
+}
+```
+
+### 播放视频
+|方法名|功能描述|
+|:-|:-|
+|setVideoPath()|设置要播放的视频文件的位置|
+|start()|开始或继续播放视频|
+|pause()|暂停播放视频|
+|resume()|将视频从头播放|
+|seekTo()|从指定的位置开始播放视频|
+|isPlaying()|判断当前是否正在播放视频|
+|getDuration()|获取载入的视频文件的时长|
+|suspend()|释放VideoView所占用的资源|
+
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding: ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        //将raw目录下的视频文件解析为一个Uri对象
+        val uri = Uri.parse("android.resource://$packageName/${R.raw.video}")
+        binding.videoView.setVideoURI(uri)
+        binding.play.setOnClickListener {
+            if(!binding.videoView.isPlaying){
+                binding.videoView.start()
+            }
+        }
+        binding.pause.setOnClickListener {
+            if(binding.videoView.isPlaying){
+                binding.videoView.pause()
+            }
+        }
+        binding.replay.setOnClickListener {
+            if(binding.videoView.isPlaying){
+                binding.videoView.resume()
+            }
+        }
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+        //将VideoView所占用的资源释放
+        binding.videoView.suspend()
+    }
+}
 ```
