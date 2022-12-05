@@ -10,3 +10,4 @@
 * [ ] onActivityCreated()方法被弃用
 * [ ] Room
 * [ ] 图片压缩
+* [ ] AsyncTask被废弃

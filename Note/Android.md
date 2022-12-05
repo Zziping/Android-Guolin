@@ -2847,3 +2847,156 @@ class MainActivity : AppCompatActivity() {
     }
 }
 ```
+
+
+# Service
+> Service是Android中实现程序后台运行的解决方案。
+
+Service并不运行在一个独立的进程中，而是依赖于创建Service时所在的应用程序。当某个应用程序进程被杀掉时，所有依赖于该进程的Service也会停止运行。
+
+## Android多线程
+### 线程的基本用法
+1. 继承Thread类，实现父类run()方法
+```kotlin
+class MyThread : Thread(){
+    override fun run(){
+
+    }
+}
+    MyThread().start()
+```
+2. 实现Runnable接口
+```kotlin
+class MyThread : Runnable{
+    override fun run(){
+
+    }
+}
+    val myThread = MyThread()
+    Thread(myThread).start()
+```
+3. Lambda表达式
+```kotlin
+    Thread{
+
+    }.start()
+```
+4. Kotlin内置的顶层函数
+```kotlin
+    thread{
+
+    }
+```
+
+### 在子线程中更新UI
+**Android不允许在子线程中进行UI操作**
+对于这种情况，Android提供了一套异步消息处理机制。
+```kotlin
+class MainActivity : AppCompatActivity() {
+    val updateText = 1
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.changeTextBtn.setOnClickListener {
+            thread {
+                val msg = Message()
+                msg.what = updateText
+                handler.sendMessage(msg)
+            }
+        }
+    }
+    val handler = object : Handler(Looper.getMainLooper()){
+        override fun handleMessage(msg: Message) {
+            when(msg.what){
+                updateText -> binding.textView.text = "Nice to meet you!"
+            }
+        }
+    }
+}
+```
+
+### 解析异步消息处理机制
+**1. Message**
+Message是在线程之间传递的消息，它可以在内部携带少量信息，用于在不同线程间传递数据。
+
+**2. Handler**
+Handler主要用于发送和处理消息的。发送消息一般是使用Handler的sendMessage()、post()方法等，而发出消息经过一系列处理之后最终会传递到handleMessage()方法中。
+
+**3. MessageQueue**
+MessageQueue主要用于存放所有通过Handler发送的消息。这部分消息会一直存在于消息队列中，等待被处理。每个线程中只会有一个MessageQueue对象。
+
+**4. Looper**
+Looper是每个线程中的MessageQueue的管家，调用Looper()的loop()方法后，就会进入一个无限循环当中，然后每当发现MessageQueue中存在一条消息时就会将它取出，并传递到Handler的handleMessage()方法中。每个线程中只会有一个Looper对象。
+
+```kotlin
+class MainActivity : AppCompatActivity() {
+    val updateText = 1
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        binding.changeTextBtn.setOnClickListener {
+            thread {
+                val msg = Message()
+                msg.what = updateText
+                handler.sendMessage(msg)
+            }
+        }
+    }
+    val handler = object : Handler(Looper.getMainLooper()){
+        override fun handleMessage(msg: Message) {
+            when(msg.what){
+                updateText -> binding.textView.text = "Nice to meet you!"
+            }
+        }
+    }
+}
+```
+1. 在主线程中创建创建一个Handler对象，并重写handleMessage()方法
+2. 当子线程中需要UI操作时，创建一个Message对象，并通过Handler将这条消息发送出去
+3. 之后这条消息会被添加到MessageQueue的队列中等待被处理，而Looper会一直尝试从MessageQueue中取出待处理消息，最后发回Handler的handleMessage()方法中。
+4. 由于Handler的构造函数中我们传入了Looper.getMainLooper()，所以此时handleMessage()方法中的代码也会在主线程中运行。
+
+### 使用AsyncTask
+AsyncTask是一个抽象类，我们需要创建一个子类去继承它。在继承时我们可以为AsyncTask类指定3个泛型参数：
+* Params：在执行AsyncTask时需要传入的参数，可用于在后台任务中使用。
+* Progress：在后台任务执行时，如果需要在界面上显示当前的进度，则使用这里指定的泛型作为进度单位。
+* Result：当任务执行完毕以后，如果需要对结果进行返回，则使用这里指定的泛型作为返回值类型。
+
+一个比较完整的自定义AsyncTask就可以写成如下形式：
+```kotlin
+class DownloadTask : AsyncTask<Unit, Int, Boolean>() {
+    override fun doInBackground(vararg params: Unit?) = try {
+        while (true){
+            val downloadPercent = 20
+            publishProgress(downloadPercent)
+            if(downloadPercent >= 100){
+                break
+            }
+        }
+        true
+    }catch (e : Exception){
+        false
+    }
+    override fun onPreExecute() {
+        //显示进度对话框
+        //progressDialog.show()
+    }
+    override fun onProgressUpdate(vararg values: Int?) {
+        //更新下载进度
+        //progressDialog.setMessage("Downloaded ${values[0]}%")
+    }
+    override fun onPostExecute(result: Boolean) {
+        //progressDialog.dismiss()
+        //提示下载结果
+        if (result){
+            Toast.makeText(context, "Download succeeded", Toast.LENGTH_SHORT).show()
+        }else{
+            Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+```
