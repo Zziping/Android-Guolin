@@ -3000,3 +3000,194 @@ class DownloadTask : AsyncTask<Unit, Int, Boolean>() {
     }
 }
 ```
+* doInBackground()中执行具体的耗时任务
+* onProgressUpdate()中进行UI操作
+* onPostExecute()中执行任务的收尾工作
+
+## Service的基本用法
+### 定义一个Service
+```kotlin
+class MyService : Service() {
+    override fun onBind(intent: Intent): IBinder {
+        TODO("Return the communication channel to the service.")
+    }
+    override fun onCreate() {
+        super.onCreate()
+        Log.d("MyService", "onCreate")
+    }
+    //一旦启动就立刻执行某个动作
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d("MyService", "onStartCommand")
+        return super.onStartCommand(intent, flags, startId)
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d("MyService", "onDestroy")
+    }
+}
+```
+* onCreate()：第一次创建时调用
+* onStartCommand()：每次启动Service时调用
+* onDestroy()：Service销毁时调用
+
+### 启动和停止Service
+```kotlin
+class ServiceActivity : AppCompatActivity() {
+    lateinit var binding : ActivityServiceBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.startServiceBtn.setOnClickListener {
+            val intent = Intent(this, MyService::class.java)
+            startService(intent)
+        }
+        binding.stopServiceBtn.setOnClickListener {
+            val intent = Intent(this, MyService::class.java)
+            stopService(intent)
+        }
+    }
+}
+```
+
+### Activity和Service进行通信
+```kotlin
+class MyService : Service() {
+    private val mBinder = DownloadBinder()
+    class DownloadBinder : Binder(){
+        fun startDownload(){
+            Log.d("MyService", "start download")
+        }
+        fun getProgress() : Int{
+            Log.d("MyService", "get progress")
+            return 0
+        }
+    }
+    override fun onBind(intent: Intent): IBinder {
+        return mBinder
+    }
+    ...
+}
+```
+
+
+```kotlin
+class ServiceActivity : AppCompatActivity() {
+    lateinit var downloadBinder : MyService.DownloadBinder
+    private val connection = object : ServiceConnection{
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            downloadBinder = service as MyService.DownloadBinder
+            downloadBinder.startDownload()
+            downloadBinder.getProgress()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+        }
+    }
+    lateinit var binding : ActivityServiceBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.bindServiceBtn.setOnClickListener {
+            val intent = Intent(this, MyService::class.java)
+            bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        }
+        binding.unbindServiceBtn.setOnClickListener {
+            unbindService(connection)
+        }
+
+    }
+}
+```
+* onServiceConnected()：Activity与Service成功绑定时调用
+* onServiceDisconnected()：Service的创建进程崩溃或被杀掉的时候才会调用
+
+**bindService()**：接收三个参数：第一个参数是构建出的Intent对象；第二个参数是前面创建出的ServiceConnection的实例；第三个参数是一个标志位，此处的BIND_AUTO_CREATE表示在Activity和Service进行绑定后自动创建Service，这会使得MyService中的onCreate()方法执行而onStartCommand()方法不会执行。
+
+## Service的生命周期
+**1. startService()**
+
+**2. bindService()**
+
+
+## Service更多技巧
+### 使用前台Service
+```kotlin
+class MyService : Service() {
+    ...
+    override fun onCreate() {
+        super.onCreate()
+        Log.d("MyService", "onCreate")
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+            val channel = NotificationChannel("my_service", "前台Service", NotificationManager.IMPORTANCE_DEFAULT)
+            manager.createNotificationChannel(channel)
+        }
+        val intent = Intent(this, MainActivity::class.java)
+        val pi = PendingIntent.getActivity(this, 0, intent, 0)
+        val notification = NotificationCompat.Builder(this, "my_service")
+            .setContentText("this is content text")
+            .setContentTitle("this is content title")
+            .setSmallIcon(R.drawable.ic_launcher_background)
+            .setContentIntent(pi)
+            .build()
+        startForeground(1, notification)
+    }
+}
+```
+
+
+### 使用IntentService
+Service执行结束后自动停止
+```kotlin
+class MyService : Service() {
+    ...
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d("MyService", "onStartCommand")
+        thread{
+            ...
+            stopSelf()
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+}
+```
+
+或使用IntentService
+```kotlin
+class MyIntentService : IntentService("MyIntentService") {
+    override fun onHandleIntent(intent: Intent?) {
+        Log.d("MyIntentService", "Thread id is ${Thread.currentThread().name}")
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d("MyIntentService", "onDestroy")
+    }
+}
+```
+```kotlin
+package com.android.servicetest
+
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import android.os.IBinder
+import android.util.Log
+import com.android.servicetest.databinding.ActivityMainBinding
+import com.android.servicetest.databinding.ActivityServiceBinding
+
+class ServiceActivity : AppCompatActivity() {
+    ...
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.startIntentServiceBtn.setOnClickListener {
+            Log.d("MainActivity", "Thread id is ${Thread.currentThread().name}")
+            val intent = Intent(this, MyIntentService::class.java)
+            startService(intent)
+        }
+    }
+}
+```
+
+
+# 网络技术

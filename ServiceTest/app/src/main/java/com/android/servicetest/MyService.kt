@@ -1,12 +1,59 @@
 package com.android.servicetest
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.os.Binder
+import android.os.Build
 import android.os.IBinder
+import android.util.Log
+import androidx.core.app.NotificationCompat
 
 class MyService : Service() {
+    private val mBinder = DownloadBinder()
+    class DownloadBinder : Binder(){
+        fun startDownload(){
+            Log.d("MyService", "start download")
+        }
+        fun getProgress() : Int{
+            Log.d("MyService", "get progress")
+            return 0
+        }
+    }
 
     override fun onBind(intent: Intent): IBinder {
-        TODO("Return the communication channel to the service.")
+        return mBinder
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        Log.d("MyService", "onCreate")
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+            val channel = NotificationChannel("my_service", "前台Service", NotificationManager.IMPORTANCE_DEFAULT)
+            manager.createNotificationChannel(channel)
+        }
+        val intent = Intent(this, MainActivity::class.java)
+        val pi = PendingIntent.getActivity(this, 0, intent, 0)
+        val notification = NotificationCompat.Builder(this, "my_service")
+            .setContentText("this is content text")
+            .setContentTitle("this is content title")
+            .setSmallIcon(R.drawable.ic_launcher_background)
+            .setContentIntent(pi)
+            .build()
+        startForeground(1, notification)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d("MyService", "onStartCommand")
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d("MyService", "onDestroy")
     }
 }
