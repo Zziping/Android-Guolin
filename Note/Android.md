@@ -3163,19 +3163,6 @@ class MyIntentService : IntentService("MyIntentService") {
 }
 ```
 ```kotlin
-package com.android.servicetest
-
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.content.ServiceConnection
-import androidx.appcompat.app.AppCompatActivity
-import android.os.Bundle
-import android.os.IBinder
-import android.util.Log
-import com.android.servicetest.databinding.ActivityMainBinding
-import com.android.servicetest.databinding.ActivityServiceBinding
-
 class ServiceActivity : AppCompatActivity() {
     ...
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -3191,3 +3178,326 @@ class ServiceActivity : AppCompatActivity() {
 
 
 # 网络技术
+## WebView的用法
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        //设置浏览器的属性
+        binding.webView.settings.javaScriptEnabled = true
+        //当发生网页跳转，目标网页仍在WebView中显示
+        binding.webView.webViewClient = WebViewClient()
+        binding.webView.loadUrl("https://www.baidu.com")
+    }
+}
+```
+访问网络需要权限声明
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    ...
+</manifest>
+```
+
+## 使用HTTP访问网络
+> HTTP工作原理：
+> 客户端向服务器发出一条HTTP请求，服务器收到请求后返回一些数据给客户端。
+
+WebView已经在后台帮我们处理好了发送HTTP请求、接收服务器响应、解析返回数据以及最终的页面展示这几步工作。
+
+### 使用HttpURLConnection
+Android6.0之前发送HTTP请求有两种方式：HttpURLConnection和HttpClient，Android6.0系统中，HttpClient的功能被完全移除，官方建议使用HttpURLConnection。
+
+1. 获取HttpURLConnection的实例
+```kotlin
+    //创建URL对象并传入目标网址
+    val url = URL("https://www.baidu.com")
+    //调用openConnection()方法
+    val connection = url.openConnection() as HttpURLConnection
+```
+2. 设置HTTP请求所使用的方法
+```kotlin
+    connection.requestMethod = "GET"
+```
+* 常用方法有两个
+    * GET：希望从服务器获取数据
+    * POST：希望提交数据给服务器
+3. 接下来可以进行一些自由定制
+```kotlin
+    //连接超时
+    connection.connectTimeout = 8000
+    //读取超时
+    connection.readTimeout = 8000
+```
+4. 获取服务器返回的输入流数据
+```kotlin
+    val input = connection.inputStream
+```
+5. 将HTTP连接关闭
+```kotlin
+    connection.disconnect()
+```
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.sendRequestBtn.setOnClickListener {
+            sendRequestWithHttpURLConnection()
+        }
+    }
+    private fun sendRequestWithHttpURLConnection(){
+        //开启线程发起网络请求
+        thread {
+            var connection : HttpURLConnection? = null
+            try {
+                val response = StringBuilder()
+                val url = URL("https://www.baidu.com")
+                connection = url.openConnection() as HttpURLConnection
+                connection.connectTimeout = 8000
+                connection.readTimeout = 8000
+                val input = connection.inputStream
+                //对获取的输入流进行读取
+                val reader = BufferedReader(InputStreamReader(input))
+                reader.use {
+                    reader.forEachLine {
+                        response.append(it)
+                    }
+                }
+                showResponse(response.toString())
+            }catch (e : Exception){
+                e.printStackTrace()
+            }finally {
+                connection?.disconnect()
+            }
+        }
+    }
+    private fun showResponse(response : String){
+        runOnUiThread {
+            //进行UI操作
+            binding.responseText.text = response
+        }
+    }
+}
+```
+
+### 使用OkHttp
+添加OkHttp库的依赖`implementation 'com.squareup.okhttp3:okhttp:4.8.1'`
+使用低版本会报错
+
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.sendRequestBtn.setOnClickListener {
+            sendRequestWithOkHttp()
+        }
+    }
+    private fun showResponse(response : String){
+        runOnUiThread {
+            binding.responseText.text = response
+        }
+    }
+    private fun sendRequestWithOkHttp(){
+        thread {
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder()
+                    .url("https://www.baidu.com")
+                    .build()
+                val response = client.newCall(request).execute()
+                val responseData = response.body?.string()
+                if(responseData != null){
+                    showResponse(responseData)
+                }
+            }catch (e : Exception){
+                e.printStackTrace()
+            }
+        }
+    }
+}
+```
+
+## 解析XML格式数据
+### Pull解析方式
+**Android把模拟设备的地址设为了127.0.0.1，计算机本地IP设为了10.0.2.2**
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.sendRequestBtn.setOnClickListener {
+            sendRequestWithOkHttp()
+        }
+    }
+    private fun sendRequestWithOkHttp(){
+        thread {
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder()
+                    .url("http://10.0.2.2:442/get_data.xml")
+                    .build()
+                val response = client.newCall(request).execute()
+                val responseData = response.body?.string()
+                if(responseData != null){
+                    parseXMLWithPull(responseData)
+                }
+            }catch (e : Exception){
+                e.printStackTrace()
+            }
+        }
+    }
+    private fun parseXMLWithPull(xmlData : String){
+        try {
+            val factory = XmlPullParserFactory.newInstance()
+            val xmlPullParser = factory.newPullParser()
+            xmlPullParser.setInput(StringReader(xmlData))
+            var eventType = xmlPullParser.eventType
+            var id = ""
+            var name = ""
+            var version = ""
+            while (eventType != XmlPullParser.END_DOCUMENT){
+                val nodeName = xmlPullParser.name
+                when(eventType){
+                    //开始解析某个节点
+                    XmlPullParser.START_TAG -> {
+                        when(nodeName){
+                            "id" -> id = xmlPullParser.nextText()
+                            "name" -> name = xmlPullParser.nextText()
+                            "version" -> version = xmlPullParser.nextText()
+                        }
+                    }
+                    //完成解析某个节点
+                    XmlPullParser.END_TAG -> {
+                        if("app" == nodeName){
+                            Log.d("MainActivity", "id is $id")
+                            Log.d("MainActivity", "name is $name")
+                            Log.d("MainActivity", "version is $version")
+                        }
+                    }
+                }
+                eventType = xmlPullParser.next()
+            }
+        }catch (e : Exception){
+            e.printStackTrace()
+        }
+    }
+}   
+```
+
+### SAX解析方式
+```kotlin
+class ContentHandler : DefaultHandler() {
+    private var nodeName = ""
+    private lateinit var id : StringBuilder
+    private lateinit var name : StringBuilder
+    private lateinit var version : StringBuilder
+    override fun startDocument() {
+        //初始化
+        id = StringBuilder()
+        name = StringBuilder()
+        version = StringBuilder()
+    }
+    override fun startElement(uri: String, localName: String, qName: String, attributes: Attributes) {
+        nodeName = localName
+        Log.d("ContentHandler", "uri is $uri")
+        Log.d("ContentHandler", "localName is $localName")
+        Log.d("ContentHandler", "qName is $qName")
+        Log.d("ContentHandler", "attributes is $attributes")
+    }
+    override fun characters(ch: CharArray, start: Int, length: Int) {
+        when(nodeName){
+            "id" -> id.append(ch, start, length)
+            "name" -> name.append(ch, start, length)
+            "version" -> version.append(ch, start, length)
+        }
+    }
+    override fun endElement(uri: String?, localName: String?, qName: String?) {
+        if("app" == localName){
+            Log.d("ContentHandler", "id is ${id.toString().trim()}")
+            Log.d("ContentHandler", "name is ${name.toString().trim()}")
+            Log.d("ContentHandler", "version is ${version.toString().trim()}")
+            id.setLength(0)
+            name.setLength(0)
+            version.setLength(0)
+        }
+    }
+    override fun endDocument() {
+    }
+}
+```
+* startDocument()：开始XML解析时调用
+* startElement()：开始解析某个节点时调用
+* characters()：获取节点中内容时调用
+* endElement()：完成解析某个节点时调用
+* endDocument()：完成整个XML解析时调用
+
+```kotlin
+class MainActivity : AppCompatActivity() {
+    ...
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.sendRequestBtn.setOnClickListener {
+            sendRequestWithOkHttp()
+        }
+    }
+    private fun sendRequestWithOkHttp(){
+        thread {
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder()
+                    .url("http://10.0.2.2:442/get_data.xml")
+                    .build()
+                val response = client.newCall(request).execute()
+                val responseData = response.body?.string()
+                if(responseData != null){
+                    parseXMLWithSAX(responseData)
+                }
+            }catch (e : Exception){
+                e.printStackTrace()
+            }
+        }
+    }
+    private fun parseXMLWithSAX(xmlData: String){
+        try {
+            val factory = SAXParserFactory.newInstance()
+            val xmlReader = factory.newSAXParser().xmlReader
+            val handler = ContentHandler()
+            xmlReader.contentHandler = handler
+            xmlReader.parse(InputSource(StringReader(xmlData)))
+        }catch (e: Exception){
+            e.printStackTrace()
+        }
+    }
+}
+```
+
+### DOM解析方式
+
+## 解析JSON格式数据
+### 使用JSONObject
+
+
+
+### 使用GSON
+
+
+
+
+## 网络请求回调的实现方式
+
+
+## 最好用的网络库：Retrofit
+### Retrofit的基本用法
+
+
+
+### 处理复杂的接口地址类型
+
+
+### Retrofit构建器的最佳写法
+
+
