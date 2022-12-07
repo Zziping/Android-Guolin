@@ -3322,6 +3322,25 @@ class MainActivity : AppCompatActivity() {
 ```
 
 ## 解析XML格式数据
+```xml
+<apps>
+	<app>
+		<id>1</id>
+		<name>Google Maps</name>
+		<version>1.0</version>
+	</app>
+	<app>
+		<id>2</id>
+		<name>Chrome</name>
+		<version>2.1</version>
+	</app>
+	<app>
+		<id>3</id>
+		<name>Google Play</name>
+		<version>2.3</version>
+	</app>
+</apps>
+```
 ### Pull解析方式
 **Android把模拟设备的地址设为了127.0.0.1，计算机本地IP设为了10.0.2.2**
 ```kotlin
@@ -3478,16 +3497,237 @@ class MainActivity : AppCompatActivity() {
 ### DOM解析方式
 
 ## 解析JSON格式数据
+```json
+[{"id":"5","name":"Clash of Clans","version":"5.5"},
+{"id":"6","name":"Boom Beach","version":"7.0"},
+{"id":"7","name":"Clash Royale","version":"3.5"}]
+```
 ### 使用JSONObject
-
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.sendRequestBtn.setOnClickListener {
+            sendRequestWithOkHttp()
+        }
+    }
+    private fun sendRequestWithOkHttp(){
+        thread {
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder()
+                    .url("http://10.0.2.2:442/get_data.json")
+                    .build()
+                val response = client.newCall(request).execute()
+                val responseData = response.body?.string()
+                if(responseData != null){
+                    parseJSONWithJSONObject(responseData)
+                }
+            }catch (e : Exception){
+                e.printStackTrace()
+            }
+        }
+    }
+    private fun parseJSONWithJSONObject(jsonData : String){
+        try {
+            val jsonArray = JSONArray(jsonData)
+            for(i in 0 until jsonArray.length()){
+                val jsonObject = jsonArray.getJSONObject(i)
+                val id = jsonObject.getString("id")
+                val name = jsonObject.getString("name")
+                val version = jsonObject.getString("version")
+                Log.d("MainActivity", "id is $id")
+                Log.d("MainActivity", "name is $name")
+                Log.d("MainActivity", "version is $version")
+            }
+        }catch (e: Exception){
+            e.printStackTrace()
+        }
+    }
+}
+```
+将服务器返回的数据传入一个JSONArray对象中，循环遍历这个JSONArray，从中取出的每一个元素都是一个JSONObject对象，每个JSONObject对象中会包含id、name和version这些数据，使用getString()方法将这些数据取出即可。
 
 
 ### 使用GSON
+引入依赖`implementation 'com.google.code.gson:gson:2.8.5'`
 
+> GSON的强大之处在于可以将一段JSON格式的字符串自动映射成一个对象，从而不需要我们再手动编写代码进行解析。
 
+1. 一段json数据
+```json
+{"name":"Tom","age":20}
+```
+```kotlin
+    val gson = Gson()
+    val person = gson.fromJson(jsonData, Person::class.java)
+```
+2. 一段json数组
+```json
+[{"name":"Tom","age":20},{"name":"Jack","age":25},{"name":"Lily","age":22}]
+```
+```kotlin
+    val typeOf = object : TypeToken<List<Person>>(){}.type
+    val peopleList = gson.fromJson<List<Person>>(jsonData, typeOf)
+```
 
+```kotlin
+class MainActivity : AppCompatActivity() {
+    lateinit var binding : ActivityMainBinding
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        binding.sendRequestBtn.setOnClickListener {
+            sendRequestWithOkHttp()
+        }
+    }
+    private fun sendRequestWithOkHttp(){
+        thread {
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder()
+                    .url("http://10.0.2.2:442/get_data.json")
+                    .build()
+                val response = client.newCall(request).execute()
+                val responseData = response.body?.string()
+                if(responseData != null){
+                    parseJSONWithGSON(responseData)
+                }
+            }catch (e : Exception){
+                e.printStackTrace()
+            }
+        }
+    }
+    private fun parseJSONWithGSON(jsonData: String){
+        val gson = Gson()
+        val typeOf = object: TypeToken<List<App>>(){}.type
+        val appList = gson.fromJson<List<App>>(jsonData, typeOf)
+        for (app in appList){
+            Log.d("MainActivity", "id is ${app.id}")
+            Log.d("MainActivity", "name is ${app.name}")
+            Log.d("MainActivity", "version is ${app.version}")
+        }
+    }
+}
+```
 
 ## 网络请求回调的实现方式
+由于发送http请求的代码基本是相同的，如果每次都编写一遍发送http请求的代码，显然是一种特别差劲的做法。
+我们应该将这些通用的网络操作提取到一个公共的类里，并提供一个通用方法，当需要发起网络请求的时候，只需要简单调用这个方法即可。
+
+```kotlin
+object HttpUtil {
+    fun sendHttpRequest(address : String) : String{
+        var connection : HttpURLConnection? = null
+        try {
+            val response = StringBuilder()
+            val url = URL(address)
+            connection = url.openConnection() as HttpURLConnection
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
+            val input = connection.inputStream
+            val reader = BufferedReader(InputStreamReader(input))
+            reader.use {
+                reader.forEachLine {
+                    response.append(it)
+                }
+            }
+            return response.toString()
+        }catch (e : Exception){
+            e.printStackTrace()
+            return e.message.toString()
+        }finally {
+            connection?.disconnect()
+        }
+    }
+}
+```
+当需要发起一条http请求时：
+```kotlin
+    val address = "https://www.baidu.com"
+    val response = HttpUtil.sendHttpRequest(address)
+```
+
+> 网络请求属于耗时操作，而sendHttpRequest()方法内部并没有开启线程，这就有可能导致调用此方法时主线程被阻塞。
+> 但如果我们在sendHttpRequest()开启一个线程来发起http请求，服务器响应的数据是无法返回的。因为所有耗时操作都是在子线程中进行的，sendHttpRequest()方法会在服务器还没来得及响应的时候就执行结束了，当然也就无法返回响应的数据了。
+
+**编程语言的回调机制**
+首先需要定义一个接口
+```kotlin
+interface HttpCallbackListener {
+    fun onFinish(response : String)
+    fun onError(e : Exception)
+}
+```
+接下来修改HttpUtil类中的代码
+```kotlin
+object HttpUtil {
+    fun sendHttpRequest(address : String, listener : HttpCallbackListener){
+        thread {
+            var connection : HttpURLConnection? = null
+            try {
+                val response = StringBuilder()
+                val url = URL(address)
+                connection = url.openConnection() as HttpURLConnection
+                connection.connectTimeout = 8000
+                connection.readTimeout = 8000
+                val input = connection.inputStream
+                val reader = BufferedReader(InputStreamReader(input))
+                reader.use {
+                    reader.forEachLine {
+                        response.append(it)
+                    }
+                }
+                listener.onFinish(response.toString())
+            }catch (e : Exception){
+                e.printStackTrace()
+                listener.onError(e)
+            }finally {
+                connection?.disconnect()
+            }
+        }
+    }
+}
+```
+此时sendHttpRequest()方式接收两个参数，因此我们在调用时还需要将HttpCallbackListener的实例传入：
+```kotlin
+    HttpUtil.sendHttpRequest(address, object : HttpCallbackListener{
+        override fun onFinish(response : String){
+            //得到服务器返回的具体内容
+        }
+        override fun onError(e : Exception){
+            //在这里对异常情况进行处理
+        }
+    })
+```
+**使用OkHttp发送请求**
+```kotlin
+object HttpUtil {
+    fun sendHttpRequest(address : String, listener : HttpCallbackListener){
+        ...
+    }
+
+    fun sendOkHttpRequest(address : String, callback : okhttp3.Callback){
+        val client = OkHttpClient()
+        val request = Request.Builder()
+            .url(address)
+            .build()
+        client.newCall(request).enqueue(callback)
+    }
+}
+```
+我们在调用sendOkHttpRequest()方法时就可以这样写
+```kotlin
+    HttpUtil.sendOkHttpRequest(address, object : Callback{
+        override fun onResponse(call : Call, response : Response){
+            val responseData = response.body?.string()
+        }
+        override fun onFailure(call : Call, e : IOException){
+
+        }
+    })
+```
+不管使用HttpURLConnection还是OkHttp，最终回调接口都还是在子线程中运行的，因此我们不可以在这里执行任何的UI操作，除非借用`runOnUiThread()`方法来进行线程的转换。
 
 
 ## 最好用的网络库：Retrofit
